@@ -4,6 +4,7 @@ use fastrand;
 
 use crate::tile::{Board, SpawnTile, Tile};
 
+mod tetromino;
 mod tile;
 
 fn main() -> AppExit {
@@ -11,7 +12,7 @@ fn main() -> AppExit {
         .insert_resource(ClearColor(Color::srgb(0.0, 0.0, 0.0)))
         .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
         .add_plugins((EguiPlugin::default(), WorldInspectorPlugin::new()))
-        .add_plugins(tile::TilePlugin)
+        .add_plugins((tile::TilePlugin, tetromino::TetrominoPlugin))
         .add_systems(Startup, setup)
         .add_systems(Update, (handle_keypress, update_tile_positions))
         .run()
