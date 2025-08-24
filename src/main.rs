@@ -17,11 +17,11 @@ fn main() -> AppExit {
         .add_plugins((EguiPlugin::default(), WorldInspectorPlugin::new()))
         .add_plugins((tile::TilePlugin, tetromino::TetrominoPlugin))
         .add_systems(Startup, setup)
-        .add_systems(Update, handle_keypress.in_set(TileUpdates))
-        .configure_sets(
+        .add_systems(
             Update,
-            (TetrominoUpdates, TileUpdates, TileVisuals).chain(),
+            (handle_keypress, move_tetrominos).in_set(TileUpdates),
         )
+        .configure_sets(Update, (TetrominoUpdates, TileUpdates, TileVisuals).chain())
         .run()
 }
 
@@ -64,5 +64,28 @@ fn handle_keypress(
                 Tetromino::new(shape, pos, board_entity),
             ));
         });
+    }
+}
+
+fn move_tetrominos(
+    mut tetrominos: Query<&mut Tetromino>,
+    boards: Query<&Board>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+) {
+    let mut movement = IVec2::ZERO;
+    if keyboard.just_pressed(KeyCode::KeyA) {
+        movement.x -= 1;
+    }
+    if keyboard.just_pressed(KeyCode::KeyD) {
+        movement.x += 1;
+    }
+
+    for mut tetromino in tetrominos.iter_mut() {
+        let board = boards.get(tetromino.board_entity).expect("Board not found");
+
+        let new_pos = tetromino.pos + movement;
+        if is_tetromino_pos_valid(tetromino.shape.clone(), new_pos, board) {
+            tetromino.pos = new_pos;
+        }
     }
 }

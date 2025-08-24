@@ -64,7 +64,7 @@ fn place_tetromino(
     bevy::log::info!("Placing tetromino at {:?}", tetromino.pos);
     for offset in tetromino.shape.iter() {
         let pos = tetromino.pos + offset;
-        spawn_tile(commands, pos, tetromino.board_entity, asset_server);
+        spawn_tile(commands, pos, tetromino.board_entity, true, asset_server);
     }
 
     commands.entity(tetromino_entity).despawn();
@@ -88,7 +88,7 @@ fn spawn_tiles(
         let board_entity = tetromino.board_entity;
         for offset in tetromino.shape.iter() {
             let pos = tetromino.pos + offset;
-            let tile_entity = spawn_tile(&mut commands, pos, board_entity, &asset_server);
+            let tile_entity = spawn_tile(&mut commands, pos, board_entity, false, &asset_server);
             commands
                 .get_entity(tile_entity)
                 .expect("Failed to get tile entity")
@@ -115,8 +115,13 @@ fn update_positions(
         let vertical_change = tetromino.vertical_offset.floor() as i32;
         let new_pos = tetromino.pos + IVec2::new(0, vertical_change);
         if !is_tetromino_pos_valid(tetromino.shape.clone(), new_pos, board) {
-            tetromino.vertical_offset = 0.0; // Not needed currently, useful for lock delay
-            place_tetromino(&mut commands, &tetromino, tetromino_entity, &asset_server);
+            tetromino.vertical_offset = 0.0; // Not needed currently, could be useful for lock delay
+            if is_tetromino_pos_valid(tetromino.shape.clone(), tetromino.pos, board) {
+                place_tetromino(&mut commands, &tetromino, tetromino_entity, &asset_server);
+            } else {
+                bevy::log::warn!("Failed to place tetromino at {:?}", tetromino.pos);
+                commands.entity(tetromino_entity).despawn();
+            }
             continue;
         }
         tetromino.pos = new_pos;
