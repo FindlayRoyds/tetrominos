@@ -2,7 +2,10 @@ use bevy::prelude::*;
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use fastrand;
 
-use crate::tile::{Board, SpawnTile, Tile};
+use crate::{
+    tetromino::{Tetromino, TetrominoUpdates, is_tetromino_pos_valid},
+    tile::{Board, TileUpdates, TileVisuals},
+};
 
 mod tetromino;
 mod tile;
@@ -14,7 +17,11 @@ fn main() -> AppExit {
         .add_plugins((EguiPlugin::default(), WorldInspectorPlugin::new()))
         .add_plugins((tile::TilePlugin, tetromino::TetrominoPlugin))
         .add_systems(Startup, setup)
-        .add_systems(Update, (handle_keypress, update_tile_positions))
+        .add_systems(Update, handle_keypress.in_set(TileUpdates))
+        .configure_sets(
+            Update,
+            (TetrominoUpdates, TileUpdates, TileVisuals).chain(),
+        )
         .run()
 }
 
@@ -24,45 +31,38 @@ fn setup(mut commands: Commands) {
         Transform::from_xyz(0.0, 70.0, 0.0).with_scale(Vec3::splat(0.3)),
     ));
 
-    let board = commands
-        .spawn((Name::new("Board"), Board::new(UVec2::new(10, 20))))
-        .id();
-
-    commands.queue(SpawnTile {
-        pos: IVec2::new(0, 10),
-        board,
-    });
-    commands.queue(SpawnTile {
-        pos: IVec2::new(0, 11),
-        board,
-    });
-}
-
-fn update_tile_positions(mut tiles: Query<&mut Tile>, mut boards: Query<&mut Board>) {
-    for mut tile in tiles.iter_mut() {
-        let board = boards.get_mut(tile.board).expect("Board not found");
-
-        let new_pos = tile.get_pos() - IVec2::new(0, 1);
-        if board.get_tile(new_pos).is_none() && board.is_in_bounds(new_pos) {
-            tile.set_pos(new_pos, &mut boards);
-        }
-    }
+    commands.spawn((Name::new("Board"), Board::new(UVec2::new(10, 20))));
 }
 
 fn handle_keypress(
     mut commands: Commands,
     keyboard: Res<ButtonInput<KeyCode>>,
-    board_entities: Query<(Entity, &Board)>,
+    boards: Query<(Entity, &Board)>,
 ) {
     if keyboard.just_pressed(KeyCode::Space) {
-        let (board_entity, board) = board_entities.single().expect("No board found");
-        let pos = IVec2::new(fastrand::i32(0..board.size.x as i32), 19);
-        if board.get_tile(pos).is_some() {
+        let (board_entity, board) = boards
+            .single()
+            .expect("Expected one board when spawning tetromino");
+
+        let pos = IVec2::new(
+            fastrand::i32(0..board.size.x as i32 - 1),
+            board.size.y as i32,
+        );
+        let shape = vec![
+            IVec2::new(0, 0),
+            IVec2::new(0, 1),
+            IVec2::new(0, 2),
+            IVec2::new(1, 0),
+        ];
+        if !is_tetromino_pos_valid(shape.clone(), pos, board) {
+            bevy::log::warn!("Attempted to spawn tetromino at invalid position");
             return;
         }
-        commands.queue(SpawnTile {
-            pos,
-            board: board_entity,
+        commands.entity(board_entity).with_children(|parent| {
+            parent.spawn((
+                Name::new("Tetromino"),
+                Tetromino::new(shape, pos, board_entity),
+            ));
         });
     }
 }

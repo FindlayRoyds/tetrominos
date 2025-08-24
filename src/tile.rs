@@ -4,11 +4,14 @@ pub struct TilePlugin;
 
 impl Plugin for TilePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, update_tile_visual_positions);
+        app.add_systems(
+            Update,
+            (update_tile_transforms, update_tile_visibility).in_set(TileVisuals),
+        )
+        .add_observer(on_add_tile)
+        .add_observer(on_remove_tile);
     }
 }
-
-// ====== components and other stuff ======
 
 #[derive(Component)]
 pub struct Board {
@@ -37,16 +40,20 @@ impl Board {
 #[require(Transform)]
 pub struct Tile {
     pos: IVec2,
-    pub board: Entity,
+    pub board_entity: Entity,
 }
 
 impl Tile {
+    #[allow(dead_code)]
     pub fn get_pos(&self) -> IVec2 {
         self.pos
     }
 
+    #[allow(dead_code)]
     pub fn set_pos(&mut self, pos: IVec2, boards_query: &mut Query<&mut Board>) {
-        let mut board = boards_query.get_mut(self.board).expect("Board not found");
+        let mut board = boards_query
+            .get_mut(self.board_entity)
+            .expect("Board not found");
         assert!(!board.tiles.contains_key(&pos), "Tile pos already occupied");
 
         let entity = board.tiles.remove(&self.pos).expect("Tile not found");
@@ -55,47 +62,80 @@ impl Tile {
     }
 }
 
-pub struct SpawnTile {
-    pub pos: IVec2,
-    pub board: Entity,
+// Should be updated to return entity commands
+pub fn spawn_tile(
+    commands: &mut Commands,
+    pos: IVec2,
+    board_entity: Entity,
+    asset_server: &Res<AssetServer>,
+) -> Entity {
+    let tile_image = asset_server.load("tiles/tile.png");
+
+    let tile_entity = commands
+        .spawn((
+            Name::new("Tile"),
+            Tile { pos, board_entity },
+            Sprite::from_image(tile_image),
+        ))
+        .id();
+
+    return tile_entity;
 }
 
-impl Command for SpawnTile {
-    fn apply(self, world: &mut World) -> () {
-        let asset_server = world.resource::<AssetServer>();
-        let tile_image = asset_server.load("tiles/tile.png");
+/// Systems that only read tile components, run after updates to tiles
+#[derive(SystemSet, Clone, Debug, Hash, Eq, PartialEq)]
+pub struct TileVisuals;
 
-        {
-            let board_entity = world.entity(self.board);
-            let board = board_entity.get::<Board>().expect("Board not found");
-            assert!(
-                board.get_tile(self.pos).is_none(),
-                "Tile pos already occupied"
-            );
-            assert!(board.is_in_bounds(self.pos), "Tile pos is out of bounds");
-        }
+/// Systems that make changes to tile components
+#[derive(SystemSet, Clone, Debug, Hash, Eq, PartialEq)]
+pub struct TileUpdates;
 
-        let tile_entity = world
-            .spawn((
-                Name::new("Tile"),
-                Tile {
-                    pos: self.pos,
-                    board: self.board,
-                },
-                Sprite::from_image(tile_image),
-            ))
-            .id();
-
-        let mut board_entity = world.entity_mut(self.board);
-        let mut board = board_entity.get_mut::<Board>().expect("Board not found");
-        board.tiles.insert(self.pos, tile_entity);
-    }
-}
-
-// ====== systems ======
-
-fn update_tile_visual_positions(mut query: Query<(&Tile, &mut Transform)>) {
+fn update_tile_transforms(mut query: Query<(&Tile, &mut Transform)>) {
     for (tile, mut transform) in query.iter_mut() {
         transform.translation = (tile.pos.as_vec2() * 8.0).extend(0.0);
     }
+}
+
+fn update_tile_visibility(mut tiles: Query<(&Tile, &mut Visibility)>, boards: Query<&Board>) {
+    for (tile, mut visibility) in tiles.iter_mut() {
+        let board = boards
+            .get(tile.board_entity)
+            .expect("Failed to get board for tile");
+        *visibility = if board.is_in_bounds(tile.pos) {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+    }
+}
+
+fn on_add_tile(trigger: Trigger<OnAdd, Tile>, tiles: Query<&Tile>, mut boards: Query<&mut Board>) {
+    let tile = tiles.get(trigger.target()).expect("Failed to get tile");
+    let mut board = boards
+        .get_mut(tile.board_entity)
+        .expect("Failed to get board");
+    assert!(
+        board.get_tile(tile.pos).is_none(),
+        "Tile pos already occupied"
+    );
+    board.tiles.insert(tile.pos, trigger.target());
+}
+
+fn on_remove_tile(
+    trigger: Trigger<OnRemove, Tile>,
+    tiles: Query<&Tile>,
+    mut boards: Query<&mut Board>,
+) {
+    let tile = tiles.get(trigger.target()).expect("Failed to get tile");
+    let mut board = boards
+        .get_mut(tile.board_entity)
+        .expect("Failed to get board");
+    assert!(
+        board
+            .get_tile(tile.pos)
+            .expect("Failed to get tile from board")
+            == trigger.target(),
+        "Incorrect tile entity in board"
+    );
+    board.tiles.remove(&tile.pos);
 }
