@@ -4,7 +4,9 @@ use fastrand;
 
 use crate::{
     board::Board,
-    tetromino::{Tetromino, TetrominoUpdates, is_tetromino_pos_valid},
+    tetromino::{
+        Tetromino, TetrominoType, TetrominoUpdates, is_tetromino_pos_valid, tetromino_shape,
+    },
     tile::{TileUpdates, TileVisuals},
 };
 
@@ -46,16 +48,15 @@ fn handle_keypress(
             .single()
             .expect("Expected one board when spawning tetromino");
 
+        let kind = match fastrand::i32(0..2) {
+            0 => TetrominoType::O,
+            _ => TetrominoType::L,
+        };
+        let shape = tetromino_shape(kind);
         let pos = IVec2::new(
             fastrand::i32(0..board.size.x as i32 - 1),
             board.size.y as i32,
         );
-        let shape = vec![
-            IVec2::new(0, 0),
-            IVec2::new(0, 1),
-            IVec2::new(1, 1),
-            IVec2::new(1, 0),
-        ];
         if !is_tetromino_pos_valid(shape.clone(), pos, board) {
             bevy::log::warn!("Attempted to spawn tetromino at invalid position");
             return;

@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use super::tetromino_data::TetrominoShape;
 use crate::{
     board::Board,
     tile::{Tile, spawn_tile},
@@ -18,8 +19,6 @@ impl Plugin for TetrominoPlugin {
     }
 }
 
-pub type TetrominoShape = Vec<IVec2>;
-
 #[derive(Component)]
 pub struct Tetromino {
     pub shape: TetrominoShape,
@@ -31,7 +30,7 @@ pub struct Tetromino {
 }
 
 impl Tetromino {
-    pub fn new(shape: Vec<IVec2>, pos: IVec2, board_entity: Entity) -> Self {
+    pub fn new(shape: TetrominoShape, pos: IVec2, board_entity: Entity) -> Self {
         Self {
             shape,
             pos,
