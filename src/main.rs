@@ -3,10 +3,12 @@ use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use fastrand;
 
 use crate::{
+    board::Board,
     tetromino::{Tetromino, TetrominoUpdates, is_tetromino_pos_valid},
-    tile::{Board, TileUpdates, TileVisuals},
+    tile::{TileUpdates, TileVisuals},
 };
 
+mod board;
 mod tetromino;
 mod tile;
 

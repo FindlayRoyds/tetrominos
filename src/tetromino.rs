@@ -1,6 +1,9 @@
 use bevy::prelude::*;
 
-use crate::tile::{Board, Tile, spawn_tile};
+use crate::{
+    board::Board,
+    tile::{Tile, spawn_tile},
+};
 
 pub struct TetrominoPlugin;
 

@@ -1,4 +1,6 @@
-use bevy::{platform::collections::HashMap, prelude::*};
+use bevy::prelude::*;
+
+use crate::board::Board;
 
 pub struct TilePlugin;
 
@@ -10,29 +12,6 @@ impl Plugin for TilePlugin {
         )
         .add_observer(on_add_placed_tile)
         .add_observer(on_remove_tile);
-    }
-}
-
-#[derive(Component)]
-pub struct Board {
-    pub size: UVec2,
-    tiles: HashMap<IVec2, Entity>,
-}
-
-impl Board {
-    pub fn new(size: UVec2) -> Self {
-        Self {
-            size,
-            tiles: HashMap::new(),
-        }
-    }
-
-    pub fn get_tile(&self, pos: IVec2) -> Option<Entity> {
-        self.tiles.get(&pos).copied()
-    }
-
-    pub fn is_in_bounds(&self, pos: IVec2) -> bool {
-        pos.x >= 0 && pos.y >= 0 && pos.x < self.size.x as i32 && pos.y < self.size.y as i32
     }
 }
 
@@ -54,10 +33,10 @@ impl Tile {
         let mut board = boards_query
             .get_mut(self.board_entity)
             .expect("Board not found");
-        assert!(!board.tiles.contains_key(&pos), "Tile pos already occupied");
+        assert!(board.get_tile(pos).is_some(), "Tile pos already occupied");
 
-        let entity = board.tiles.remove(&self.pos).expect("Tile not found");
-        board.tiles.insert(pos, entity);
+        let entity = board.remove_tile(pos).expect("Tile not found");
+        board.set_tile(pos, entity);
         self.pos = pos;
     }
 }
@@ -128,7 +107,7 @@ fn on_add_placed_tile(
         board.get_tile(tile.pos).is_none(),
         "Tile pos already occupied"
     );
-    board.tiles.insert(tile.pos, trigger.target());
+    board.set_tile(tile.pos, trigger.target());
 }
 
 fn on_remove_tile(
@@ -147,5 +126,5 @@ fn on_remove_tile(
             == trigger.target(),
         "Incorrect tile entity in board"
     );
-    board.tiles.remove(&tile.pos);
+    board.remove_tile(tile.pos);
 }
