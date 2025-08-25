@@ -8,7 +8,7 @@ impl Plugin for TilePlugin {
             Update,
             (update_tile_transforms, update_tile_visibility).in_set(TileVisuals),
         )
-        .add_observer(on_add_tile)
+        .add_observer(on_add_placed_tile)
         .add_observer(on_remove_tile);
     }
 }
@@ -41,8 +41,6 @@ impl Board {
 pub struct Tile {
     pos: IVec2,
     pub board_entity: Entity,
-    /// Whether the tile is placed on the board, e.g. not in a tetromino
-    placed: bool,
 }
 
 impl Tile {
@@ -64,6 +62,9 @@ impl Tile {
     }
 }
 
+#[derive(Component)]
+pub struct PlacedTile;
+
 // Should be updated to return entity commands
 pub fn spawn_tile(
     commands: &mut Commands,
@@ -74,19 +75,17 @@ pub fn spawn_tile(
 ) -> Entity {
     let tile_image = asset_server.load("tiles/tile.png");
 
-    let tile_entity = commands
-        .spawn((
-            Name::new("Tile"),
-            Tile {
-                pos,
-                board_entity,
-                placed,
-            },
-            Sprite::from_image(tile_image),
-        ))
-        .id();
+    let mut tile_commands = commands.spawn((
+        Name::new("Tile"),
+        Tile { pos, board_entity },
+        Sprite::from_image(tile_image),
+    ));
 
-    return tile_entity;
+    if placed {
+        tile_commands.insert(PlacedTile);
+    }
+
+    return tile_commands.id();
 }
 
 /// Systems that only read tile components, run after updates to tiles
@@ -116,11 +115,12 @@ fn update_tile_visibility(mut tiles: Query<(&Tile, &mut Visibility)>, boards: Qu
     }
 }
 
-fn on_add_tile(trigger: Trigger<OnAdd, Tile>, tiles: Query<&Tile>, mut boards: Query<&mut Board>) {
+fn on_add_placed_tile(
+    trigger: Trigger<OnAdd, PlacedTile>,
+    tiles: Query<&Tile>,
+    mut boards: Query<&mut Board>,
+) {
     let tile = tiles.get(trigger.target()).expect("Failed to get tile");
-    if !tile.placed {
-        return;
-    }
     let mut board = boards
         .get_mut(tile.board_entity)
         .expect("Failed to get board");
@@ -132,14 +132,11 @@ fn on_add_tile(trigger: Trigger<OnAdd, Tile>, tiles: Query<&Tile>, mut boards: Q
 }
 
 fn on_remove_tile(
-    trigger: Trigger<OnRemove, Tile>,
+    trigger: Trigger<OnRemove, PlacedTile>,
     tiles: Query<&Tile>,
     mut boards: Query<&mut Board>,
 ) {
     let tile = tiles.get(trigger.target()).expect("Failed to get tile");
-    if !tile.placed {
-        return;
-    }
     let mut board = boards
         .get_mut(tile.board_entity)
         .expect("Failed to get board");

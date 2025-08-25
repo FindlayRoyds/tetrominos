@@ -51,7 +51,7 @@ fn handle_keypress(
         let shape = vec![
             IVec2::new(0, 0),
             IVec2::new(0, 1),
-            IVec2::new(0, 2),
+            IVec2::new(1, 1),
             IVec2::new(1, 0),
         ];
         if !is_tetromino_pos_valid(shape.clone(), pos, board) {
