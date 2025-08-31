@@ -36,7 +36,7 @@ fn setup(mut commands: Commands) {
         Transform::from_xyz(0.0, 70.0, 0.0).with_scale(Vec3::splat(0.3)),
     ));
 
-    commands.spawn((Name::new("Board"), Board::new(UVec2::new(10, 20))));
+    commands.spawn((Name::new("Board"), Board::new(uvec2(10, 20))));
 }
 
 fn handle_keypress(
@@ -58,7 +58,7 @@ fn handle_keypress(
             5 => TetrominoKind::T,
             _ => TetrominoKind::Z,
         };
-        let pos = IVec2::new(4, board.size.y as i32);
+        let pos = ivec2(4, board.size.y as i32);
         if !is_tetromino_pos_valid(kind, 0, pos, board) {
             bevy::log::warn!("Attempted to spawn tetromino at invalid position");
             return;

@@ -127,7 +127,7 @@ fn apply_gravity(mut tetrominos: Query<&mut Tetromino>, boards: Query<&Board>) {
     for mut tetromino in tetrominos.iter_mut() {
         let board = boards.get(tetromino.board_entity).expect("Board not found");
 
-        let new_pos = tetromino.pos - IVec2::new(0, 1);
+        let new_pos = tetromino.pos - ivec2(0, 1);
         if is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, new_pos, board) {
             tetromino.vertical_offset -= 0.1;
         }
@@ -141,7 +141,7 @@ fn update_positions(mut tetrominos: Query<&mut Tetromino>, boards: Query<&Board>
         let total_offset = tetromino.vertical_offset.floor() as i32; // Negative number
         let mut final_pos = tetromino.pos;
         for offset in (total_offset..0).rev() {
-            let new_pos = tetromino.pos + IVec2::new(0, offset);
+            let new_pos = tetromino.pos + ivec2(0, offset);
             if is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, new_pos, board) {
                 final_pos = new_pos;
             }
@@ -161,7 +161,7 @@ fn place(
     for (tetromino_entity, mut tetromino) in tetrominos.iter_mut() {
         let board = boards.get(tetromino.board_entity).expect("Board not found");
 
-        let new_pos = tetromino.pos - IVec2::new(0, 1);
+        let new_pos = tetromino.pos - ivec2(0, 1);
         if is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, new_pos, board) {
             return;
         }
