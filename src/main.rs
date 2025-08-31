@@ -66,7 +66,7 @@ fn handle_keypress(
         commands.entity(board_entity).with_children(|parent| {
             parent.spawn((
                 Name::new("Tetromino"),
-                Tetromino::new(kind, pos, board_entity),
+                Tetromino::new(kind, pos, 40, board_entity),
             ));
         });
     }
