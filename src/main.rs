@@ -49,9 +49,14 @@ fn handle_keypress(
             .single()
             .expect("Expected one board when spawning tetromino");
 
-        let kind = match fastrand::i32(0..2) {
-            0 => TetrominoKind::O,
-            _ => TetrominoKind::L,
+        let kind = match fastrand::i32(0..7) {
+            0 => TetrominoKind::I,
+            1 => TetrominoKind::J,
+            2 => TetrominoKind::L,
+            3 => TetrominoKind::O,
+            4 => TetrominoKind::S,
+            5 => TetrominoKind::T,
+            _ => TetrominoKind::Z,
         };
         let pos = IVec2::new(4, board.size.y as i32);
         if !is_tetromino_pos_valid(kind, 0, pos, board) {

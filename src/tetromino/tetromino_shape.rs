@@ -2,13 +2,13 @@ use bevy::prelude::*;
 
 #[derive(Copy, Clone)]
 pub enum TetrominoKind {
-    // I,
-    O,
-    // T,
-    // S,
-    // Z,
-    // J,
+    I,
+    J,
     L,
+    O,
+    S,
+    T,
+    Z,
 }
 
 pub type TetrominoShape = [IVec2; 4];
@@ -16,11 +16,17 @@ pub type TetrominoRotation = i32; // 0..4
 
 const fn shape(kind: TetrominoKind) -> TetrominoShape {
     match kind {
-        TetrominoKind::O => [
-            IVec2::new(0, 1),
+        TetrominoKind::I => [
             IVec2::new(0, 0),
-            IVec2::new(1, 1),
             IVec2::new(1, 0),
+            IVec2::new(2, 0),
+            IVec2::new(3, 0),
+        ],
+        TetrominoKind::J => [
+            IVec2::new(0, 0),
+            IVec2::new(1, 0),
+            IVec2::new(2, 0),
+            IVec2::new(2, 1),
         ],
         TetrominoKind::L => [
             IVec2::new(0, 0),
@@ -28,13 +34,43 @@ const fn shape(kind: TetrominoKind) -> TetrominoShape {
             IVec2::new(2, 0),
             IVec2::new(2, 1),
         ],
+        TetrominoKind::O => [
+            IVec2::new(1, 0),
+            IVec2::new(2, 0),
+            IVec2::new(1, 1),
+            IVec2::new(2, 1),
+        ],
+        TetrominoKind::S => [
+            IVec2::new(0, 0),
+            IVec2::new(1, 0),
+            IVec2::new(0, 1),
+            IVec2::new(1, 1),
+        ],
+        TetrominoKind::T => [
+            IVec2::new(0, 0),
+            IVec2::new(1, 0),
+            IVec2::new(2, 0),
+            IVec2::new(1, 1),
+        ],
+        TetrominoKind::Z => [
+            IVec2::new(1, 0),
+            IVec2::new(2, 0),
+            IVec2::new(0, 1),
+            IVec2::new(1, 1),
+        ],
     }
 }
 
+// 0, 0 is in the center of the block at 0, 0
 const fn pivot(kind: TetrominoKind) -> Vec2 {
     match kind {
-        TetrominoKind::O => Vec2::new(0.5, 0.5),
+        TetrominoKind::I => Vec2::new(1.5, -0.5),
+        TetrominoKind::J => Vec2::new(1.0, 0.0),
         TetrominoKind::L => Vec2::new(1.0, 0.0),
+        TetrominoKind::O => Vec2::new(0.5, 0.5),
+        TetrominoKind::S => Vec2::new(1.0, 0.0),
+        TetrominoKind::T => Vec2::new(1.0, 0.0),
+        TetrominoKind::Z => Vec2::new(1.0, 0.0),
     }
 }
 
