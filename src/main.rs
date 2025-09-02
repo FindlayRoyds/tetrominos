@@ -32,13 +32,22 @@ fn main() -> AppExit {
         .run()
 }
 
-fn setup(mut commands: Commands) {
+fn setup(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
     commands.spawn((
         Camera2d::default(),
-        Transform::from_xyz(0.0, 70.0, 0.0).with_scale(Vec3::splat(0.3)),
+        Transform::from_xyz(0.0, 0.0, 0.0).with_scale(Vec3::splat(0.3)),
     ));
 
-    commands.spawn((Name::new("Board"), Board::new(uvec2(10, 20))));
+    commands.spawn((
+        Name::new("Board"),
+        Board::new(uvec2(10, 20)),
+        Mesh2d(meshes.add(Rectangle::new(10.0 * 8.0, 20.0 * 8.0))),
+        MeshMaterial2d(materials.add(Color::WHITE)),
+    ));
 }
 
 fn handle_keypress(

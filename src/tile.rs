@@ -75,9 +75,11 @@ pub struct TileVisuals;
 #[derive(SystemSet, Clone, Debug, Hash, Eq, PartialEq)]
 pub struct TileUpdates;
 
-fn update_tile_transforms(mut query: Query<(&Tile, &mut Transform)>) {
+fn update_tile_transforms(mut query: Query<(&Tile, &mut Transform)>, boards: Query<&Board>) {
     for (tile, mut transform) in query.iter_mut() {
-        transform.translation = (tile.pos.as_vec2() * 8.0).extend(0.0);
+        let board = boards.get(tile.board_entity).expect("Failed to get board");
+        transform.translation =
+            ((tile.pos.as_vec2() - board.size.as_vec2() / 2.0 + vec2(0.5, 0.5)) * 8.0).extend(0.0);
     }
 }
 
