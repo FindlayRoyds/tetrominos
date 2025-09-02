@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     board::Board,
-    tetromino::{TetrominoKind, TetrominoRotation, get_tetromino_shape},
+    tetromino::{TetrominoKind, TetrominoRotation, get_tetromino_shape, get_tetromino_wall_kicks},
     tile::{Tile, spawn_tile},
 };
 
@@ -71,6 +71,25 @@ pub fn is_tetromino_pos_valid(
     }
 
     return true;
+}
+
+pub fn rotate_tetromino(tetromino: &mut Tetromino, board: &Board, rotation: TetrominoRotation) {
+    let offsets = get_tetromino_wall_kicks(tetromino.rotation, rotation, tetromino.kind);
+    bevy::log::info!(
+        "Attempting rotation: kind={:?}, from rotation={} to rotation={}, kicks={:?}",
+        tetromino.kind,
+        tetromino.rotation,
+        rotation,
+        offsets.clone()
+    );
+    for offset in offsets.iter() {
+        let new_pos = tetromino.pos + offset;
+        if is_tetromino_pos_valid(tetromino.kind, rotation, new_pos, board) {
+            tetromino.pos = new_pos;
+            tetromino.rotation = rotation;
+            return;
+        }
+    }
 }
 
 fn place_tetromino(

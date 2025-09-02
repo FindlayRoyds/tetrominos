@@ -1,5 +1,5 @@
 mod tetromino;
-mod tetromino_shape;
+mod tetromino_data;
 
 pub use tetromino::*;
-pub use tetromino_shape::*;
+pub use tetromino_data::*;

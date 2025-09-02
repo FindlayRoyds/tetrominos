@@ -4,7 +4,9 @@ use fastrand;
 
 use crate::{
     board::Board,
-    tetromino::{Tetromino, TetrominoKind, TetrominoUpdates, is_tetromino_pos_valid},
+    tetromino::{
+        Tetromino, TetrominoKind, TetrominoUpdates, is_tetromino_pos_valid, rotate_tetromino,
+    },
     tile::{TileUpdates, TileVisuals},
 };
 
@@ -23,7 +25,7 @@ fn main() -> AppExit {
             Update,
             (
                 (handle_keypress).in_set(TileUpdates),
-                (move_tetrominos, rotate_tetrominos).before(TetrominoUpdates),
+                (rotate_tetrominos, move_tetrominos).before(TetrominoUpdates),
             ),
         )
         .configure_sets(Update, (TetrominoUpdates, TileUpdates, TileVisuals).chain())
@@ -66,7 +68,7 @@ fn handle_keypress(
         commands.entity(board_entity).with_children(|parent| {
             parent.spawn((
                 Name::new("Tetromino"),
-                Tetromino::new(kind, pos, 40, board_entity),
+                Tetromino::new(kind, pos, 80, board_entity),
             ));
         });
     }
@@ -104,9 +106,7 @@ fn rotate_tetrominos(
         for mut tetromino in tetrominos.iter_mut() {
             let board = boards.get(tetromino.board_entity).expect("Board not found");
             let new_rotation = (tetromino.rotation + 1) % 4;
-            if is_tetromino_pos_valid(tetromino.kind, new_rotation, tetromino.pos, board) {
-                tetromino.rotation = new_rotation;
-            }
+            rotate_tetromino(&mut tetromino, board, new_rotation);
         }
     }
 }
