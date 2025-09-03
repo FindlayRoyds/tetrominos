@@ -14,6 +14,8 @@ mod board;
 mod tetromino;
 mod tile;
 
+use board::*;
+
 fn main() -> AppExit {
     App::new()
         .insert_resource(ClearColor(Color::srgb(0.0, 0.0, 0.0)))
@@ -37,17 +39,15 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    commands.spawn((
-        Camera2d::default(),
-        Transform::from_xyz(0.0, 0.0, 0.0).with_scale(Vec3::splat(0.3)),
-    ));
+    commands.spawn((Camera2d::default(),));
 
-    commands.spawn((
-        Name::new("Board"),
-        Board::new(uvec2(10, 20)),
-        Mesh2d(meshes.add(Rectangle::new(10.0 * 8.0, 20.0 * 8.0))),
-        MeshMaterial2d(materials.add(Color::WHITE)),
-    ));
+    spawn_board(
+        &mut commands,
+        uvec2(10, 20),
+        uvec2(8, 8),
+        &mut meshes,
+        &mut materials,
+    );
 }
 
 fn handle_keypress(

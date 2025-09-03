@@ -3,14 +3,17 @@ use bevy::{platform::collections::HashMap, prelude::*};
 #[derive(Component)]
 pub struct Board {
     pub size: UVec2,
+    pub tile_size: UVec2,
+
     tiles: HashMap<IVec2, Entity>,
 }
 
 impl Board {
-    pub fn new(size: UVec2) -> Self {
+    pub fn new(size: UVec2, tile_size: UVec2) -> Self {
         Self {
             size,
             tiles: HashMap::new(),
+            tile_size,
         }
     }
 
@@ -34,4 +37,23 @@ impl Board {
     pub fn remove_tile(&mut self, pos: IVec2) -> Option<Entity> {
         return self.tiles.remove(&pos);
     }
+}
+
+pub fn spawn_board(
+    commands: &mut Commands,
+    size: UVec2,
+    tile_size: UVec2,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+) {
+    commands.spawn((
+        Name::new("Board"),
+        Board::new(size, tile_size),
+        Mesh2d(meshes.add(Rectangle::new(
+            (size.x * tile_size.x) as f32,
+            (size.y * tile_size.x) as f32,
+        ))),
+        MeshMaterial2d(materials.add(Color::WHITE)),
+        Transform::from_scale(vec3(4.0, 4.0, 4.0)),
+    ));
 }

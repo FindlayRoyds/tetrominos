@@ -57,8 +57,10 @@ pub fn spawn_tile(
     let mut tile_commands = commands.spawn((
         Name::new("Tile"),
         Tile { pos, board_entity },
+        ChildOf(board_entity),
         Sprite::from_image(tile_image),
     ));
+    // tile_commands.insert();
 
     if placed {
         tile_commands.insert(PlacedTile);
@@ -78,8 +80,10 @@ pub struct TileUpdates;
 fn update_tile_transforms(mut query: Query<(&Tile, &mut Transform)>, boards: Query<&Board>) {
     for (tile, mut transform) in query.iter_mut() {
         let board = boards.get(tile.board_entity).expect("Failed to get board");
-        transform.translation =
-            ((tile.pos.as_vec2() - board.size.as_vec2() / 2.0 + vec2(0.5, 0.5)) * 8.0).extend(0.0);
+        transform.translation = ((tile.pos.as_vec2() - board.size.as_vec2() / 2.0
+            + vec2(0.5, 0.5))
+            * board.tile_size.as_vec2())
+        .extend(0.0);
     }
 }
 
