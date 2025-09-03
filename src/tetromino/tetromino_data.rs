@@ -83,7 +83,9 @@ pub fn get_tetromino_wall_kicks(
     new_rotation: TetrominoRotation,
     kind: TetrominoKind,
 ) -> Vec<IVec2> {
-    assert_ne!((new_rotation - original_rotation).abs(), 2);
+    if (new_rotation - original_rotation).abs() == 2 {
+        bevy::log::error!("Invalid tetromino rotation (2)")
+    }
 
     let original_offsets = offsets(kind, original_rotation);
     let new_offsets = offsets(kind, new_rotation);

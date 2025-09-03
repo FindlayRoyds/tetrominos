@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::board::Board;
+use crate::{board::Board, try_unwrap};
 
 pub struct TilePlugin;
 
@@ -10,7 +10,7 @@ impl Plugin for TilePlugin {
             Update,
             (update_tile_transforms, update_tile_visibility).in_set(TileVisuals),
         )
-        .add_observer(on_add_placed_tile)
+        .add_observer(on_add_tile)
         .add_observer(on_remove_tile);
     }
 }
@@ -20,25 +20,6 @@ impl Plugin for TilePlugin {
 pub struct Tile {
     pos: IVec2,
     pub board_entity: Entity,
-}
-
-impl Tile {
-    #[allow(dead_code)]
-    pub fn get_pos(&self) -> IVec2 {
-        self.pos
-    }
-
-    #[allow(dead_code)]
-    pub fn set_pos(&mut self, pos: IVec2, boards_query: &mut Query<&mut Board>) {
-        let mut board = boards_query
-            .get_mut(self.board_entity)
-            .expect("Board not found");
-        assert!(board.get_tile(pos).is_some(), "Tile pos already occupied");
-
-        let entity = board.remove_tile(pos).expect("Tile not found");
-        board.set_tile(pos, entity);
-        self.pos = pos;
-    }
 }
 
 #[derive(Component)]
@@ -79,7 +60,7 @@ pub struct TileUpdates;
 
 fn update_tile_transforms(mut query: Query<(&Tile, &mut Transform)>, boards: Query<&Board>) {
     for (tile, mut transform) in query.iter_mut() {
-        let board = boards.get(tile.board_entity).expect("Failed to get board");
+        let board = try_unwrap!(boards.get(tile.board_entity), "No board in tile_transforms");
         transform.translation = ((tile.pos.as_vec2() - board.size.as_vec2() / 2.0
             + vec2(0.5, 0.5))
             * board.tile_size.as_vec2())
@@ -89,9 +70,7 @@ fn update_tile_transforms(mut query: Query<(&Tile, &mut Transform)>, boards: Que
 
 fn update_tile_visibility(mut tiles: Query<(&Tile, &mut Visibility)>, boards: Query<&Board>) {
     for (tile, mut visibility) in tiles.iter_mut() {
-        let board = boards
-            .get(tile.board_entity)
-            .expect("Failed to get board for tile");
+        let board = try_unwrap!(boards.get(tile.board_entity), "No board in tile_visibility");
         *visibility = if board.is_in_bounds(tile.pos) {
             Visibility::Visible
         } else {
@@ -100,19 +79,16 @@ fn update_tile_visibility(mut tiles: Query<(&Tile, &mut Visibility)>, boards: Qu
     }
 }
 
-fn on_add_placed_tile(
+fn on_add_tile(
     trigger: Trigger<OnAdd, PlacedTile>,
     tiles: Query<&Tile>,
     mut boards: Query<&mut Board>,
 ) {
-    let tile = tiles.get(trigger.target()).expect("Failed to get tile");
-    let mut board = boards
-        .get_mut(tile.board_entity)
-        .expect("Failed to get board");
-    assert!(
-        board.get_tile(tile.pos).is_none(),
-        "Tile pos already occupied"
-    );
+    let tile = try_unwrap!(tiles.get(trigger.target()), "No tile in on_add_tile");
+    let mut board = try_unwrap!(boards.get_mut(tile.board_entity), "No board in on_add_tile");
+    if board.get_tile(tile.pos).is_some() {
+        bevy::log::error!("Tile pos already occupied in on_add_placed_tile")
+    }
     board.set_tile(tile.pos, trigger.target());
 }
 
@@ -121,16 +97,14 @@ fn on_remove_tile(
     tiles: Query<&Tile>,
     mut boards: Query<&mut Board>,
 ) {
-    let tile = tiles.get(trigger.target()).expect("Failed to get tile");
-    let mut board = boards
-        .get_mut(tile.board_entity)
-        .expect("Failed to get board");
-    assert!(
-        board
-            .get_tile(tile.pos)
-            .expect("Failed to get tile from board")
-            == trigger.target(),
-        "Incorrect tile entity in board"
+    let tile = try_unwrap!(tiles.get(trigger.target()), "No tile in on_remove_tile");
+    let mut board = try_unwrap!(
+        boards.get_mut(tile.board_entity),
+        "Failed to get board in on_remove_tile"
     );
+    if try_unwrap!(board.get_tile(tile.pos), "No board in on_remove_tile") != trigger.target() {
+        bevy::log::error!("Incorrect tile entity in board in on_remove_tile");
+    }
+
     board.remove_tile(tile.pos);
 }

@@ -13,6 +13,7 @@ use crate::{
 mod board;
 mod tetromino;
 mod tile;
+mod warnings;
 
 use board::*;
 
@@ -56,9 +57,10 @@ fn handle_keypress(
     boards: Query<(Entity, &Board)>,
 ) {
     if keyboard.just_pressed(KeyCode::Space) {
-        let (board_entity, board) = boards
-            .single()
-            .expect("Expected one board when spawning tetromino");
+        let (board_entity, board) = try_unwrap!(
+            boards.single(),
+            "Expected one board when spawning tetromino"
+        );
 
         let kind = match fastrand::i32(0..7) {
             0 => TetrominoKind::I,
@@ -71,7 +73,7 @@ fn handle_keypress(
         };
         let pos = ivec2(4, board.size.y as i32);
         if !is_tetromino_pos_valid(kind, 0, pos, board) {
-            bevy::log::warn!("Attempted to spawn tetromino at invalid position");
+            bevy::log::error!("Attempted to spawn tetromino at invalid position");
             return;
         }
         commands.entity(board_entity).with_children(|parent| {
@@ -97,7 +99,7 @@ fn move_tetrominos(
     }
 
     for mut tetromino in tetrominos.iter_mut() {
-        let board = boards.get(tetromino.board_entity).expect("Board not found");
+        let board = try_unwrap!(boards.get(tetromino.board_entity), "No board in move");
 
         let new_pos = tetromino.pos + movement;
         if is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, new_pos, board) {
@@ -113,7 +115,7 @@ fn rotate_tetrominos(
 ) {
     if keyboard.just_pressed(KeyCode::KeyW) || keyboard.just_pressed(KeyCode::ArrowUp) {
         for mut tetromino in tetrominos.iter_mut() {
-            let board = boards.get(tetromino.board_entity).expect("Board not found");
+            let board = try_unwrap!(boards.get(tetromino.board_entity), "No board in rotate");
             let new_rotation = (tetromino.rotation + 1) % 4;
             rotate_tetromino(&mut tetromino, board, new_rotation);
         }

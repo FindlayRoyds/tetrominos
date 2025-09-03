@@ -26,11 +26,12 @@ impl Board {
     }
 
     pub fn set_tile(&mut self, pos: IVec2, entity: Entity) {
-        assert!(self.is_in_bounds(pos), "Tile position out of bounds");
-        assert!(
-            !self.tiles.contains_key(&pos),
-            "Tile position already occupied"
-        );
+        if !self.is_in_bounds(pos) {
+            bevy::log::error!("Tile position out of bounds in set_tile");
+        }
+        if self.tiles.contains_key(&pos) {
+            bevy::log::error!("Tile position already occupied in set_tile");
+        }
         self.tiles.insert(pos, entity);
     }
 
@@ -46,13 +47,11 @@ pub fn spawn_board(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
 ) {
+    let rec_size = (size * tile_size).as_vec2();
     commands.spawn((
         Name::new("Board"),
         Board::new(size, tile_size),
-        Mesh2d(meshes.add(Rectangle::new(
-            (size.x * tile_size.x) as f32,
-            (size.y * tile_size.x) as f32,
-        ))),
+        Mesh2d(meshes.add(Rectangle::new(rec_size.x, rec_size.y))),
         MeshMaterial2d(materials.add(Color::WHITE)),
         Transform::from_scale(vec3(4.0, 4.0, 4.0)),
     ));

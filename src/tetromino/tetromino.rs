@@ -4,6 +4,7 @@ use crate::{
     board::Board,
     tetromino::{TetrominoKind, TetrominoRotation, get_tetromino_shape, get_tetromino_wall_kicks},
     tile::{Tile, spawn_tile},
+    try_unwrap,
 };
 
 pub struct TetrominoPlugin;
@@ -107,7 +108,7 @@ fn place_tetromino(
             spawn_tile(commands, pos, tetromino.board_entity, true, asset_server);
         }
     } else {
-        bevy::log::warn!("Failed to place tetromino at {:?}", tetromino.pos);
+        bevy::log::error!("Failed to place tetromino at {:?}", tetromino.pos);
     }
 
     commands.entity(tetromino_entity).despawn();
@@ -117,10 +118,7 @@ fn place_tetromino(
 
 fn clear_tiles(mut commands: Commands, tiles: Query<Entity, (With<Tile>, With<TetrominoTile>)>) {
     for tile_entity in tiles.iter() {
-        commands
-            .get_entity(tile_entity)
-            .expect("Failed to get tile entity")
-            .despawn();
+        try_unwrap!(commands.get_entity(tile_entity), "to entity in clear tiles").despawn();
     }
 }
 
@@ -134,9 +132,7 @@ fn spawn_tiles(
         for offset in get_tetromino_shape(tetromino.kind, tetromino.rotation) {
             let pos = tetromino.pos + offset;
             let tile_entity = spawn_tile(&mut commands, pos, board_entity, false, &asset_server);
-            commands
-                .get_entity(tile_entity)
-                .expect("Failed to get tile entity")
+            try_unwrap!(commands.get_entity(tile_entity), "no entity in spawn tile")
                 .insert(TetrominoTile);
         }
     }
@@ -144,7 +140,7 @@ fn spawn_tiles(
 
 fn apply_gravity(mut tetrominos: Query<&mut Tetromino>, boards: Query<&Board>) {
     for mut tetromino in tetrominos.iter_mut() {
-        let board = boards.get(tetromino.board_entity).expect("Board not found");
+        let board = try_unwrap!(boards.get(tetromino.board_entity), "No board in fn gravity");
 
         let new_pos = tetromino.pos - ivec2(0, 1);
         if is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, new_pos, board) {
@@ -155,7 +151,7 @@ fn apply_gravity(mut tetrominos: Query<&mut Tetromino>, boards: Query<&Board>) {
 
 fn update_positions(mut tetrominos: Query<&mut Tetromino>, boards: Query<&Board>) {
     for mut tetromino in tetrominos.iter_mut() {
-        let board = boards.get(tetromino.board_entity).expect("Board not found");
+        let board = try_unwrap!(boards.get(tetromino.board_entity), "no board, up positions");
 
         let total_offset = tetromino.vertical_offset.floor() as i32; // Negative number
         let mut final_pos = tetromino.pos;
@@ -178,7 +174,7 @@ fn place(
     asset_server: Res<AssetServer>,
 ) {
     for (tetromino_entity, mut tetromino) in tetrominos.iter_mut() {
-        let board = boards.get(tetromino.board_entity).expect("Board not found");
+        let board = try_unwrap!(boards.get(tetromino.board_entity), "No board in fn place");
 
         let new_pos = tetromino.pos - ivec2(0, 1);
         if is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, new_pos, board) {
