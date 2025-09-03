@@ -28,7 +28,7 @@ fn main() -> AppExit {
             Update,
             (
                 (handle_keypress).in_set(TileUpdates),
-                (rotate_tetrominos, move_tetrominos).before(TetrominoUpdates),
+                (rotate_tetrominoes, move_tetrominoes).before(TetrominoUpdates),
             ),
         )
         .configure_sets(Update, (TetrominoUpdates, TileUpdates, TileVisuals).chain())
@@ -85,8 +85,8 @@ fn handle_keypress(
     }
 }
 
-fn move_tetrominos(
-    mut tetrominos: Query<&mut Tetromino>,
+fn move_tetrominoes(
+    mut tetrominoes: Query<&mut Tetromino>,
     boards: Query<&Board>,
     keyboard: Res<ButtonInput<KeyCode>>,
 ) {
@@ -98,7 +98,7 @@ fn move_tetrominos(
         movement.x += 1;
     }
 
-    for mut tetromino in tetrominos.iter_mut() {
+    for mut tetromino in tetrominoes.iter_mut() {
         let board = try_unwrap!(boards.get(tetromino.board_entity), "No board in move");
 
         let new_pos = tetromino.pos + movement;
@@ -108,13 +108,13 @@ fn move_tetrominos(
     }
 }
 
-fn rotate_tetrominos(
-    mut tetrominos: Query<&mut Tetromino>,
+fn rotate_tetrominoes(
+    mut tetrominoes: Query<&mut Tetromino>,
     boards: Query<&Board>,
     keyboard: Res<ButtonInput<KeyCode>>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyW) || keyboard.just_pressed(KeyCode::ArrowUp) {
-        for mut tetromino in tetrominos.iter_mut() {
+        for mut tetromino in tetrominoes.iter_mut() {
             let board = try_unwrap!(boards.get(tetromino.board_entity), "No board in rotate");
             let new_rotation = (tetromino.rotation + 1) % 4;
             rotate_tetromino(&mut tetromino, board, new_rotation);
