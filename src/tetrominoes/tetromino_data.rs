@@ -41,7 +41,7 @@ pub fn get_tetromino_shape(kind: TetrominoKind, rotation: TetrominoRotation) -> 
     for (i, point) in shape(kind).iter().enumerate() {
         rotated_shape[i] = rotate(*point, rotation);
     }
-    return rotated_shape;
+    rotated_shape
 }
 
 fn offsets(kind: TetrominoKind, rotation: TetrominoRotation) -> Vec<IVec2> {
@@ -72,10 +72,10 @@ fn offsets(kind: TetrominoKind, rotation: TetrominoRotation) -> Vec<IVec2> {
         },
     };
 
-    return offsets
+    offsets
         .iter()
         .map(|offset| ivec2(offset.0, offset.1))
-        .collect();
+        .collect()
 }
 
 pub fn get_tetromino_wall_kicks(
@@ -90,9 +90,9 @@ pub fn get_tetromino_wall_kicks(
     let original_offsets = offsets(kind, original_rotation);
     let new_offsets = offsets(kind, new_rotation);
 
-    return original_offsets
+    original_offsets
         .iter()
         .zip(new_offsets.iter())
         .map(|(o, n)| o - n)
-        .collect();
+        .collect()
 }

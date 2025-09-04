@@ -47,7 +47,7 @@ pub fn spawn_tile(
         tile_commands.insert(PlacedTile);
     }
 
-    return tile_commands.id();
+    tile_commands.id()
 }
 
 /// Systems that only read tile components, run after updates to tiles

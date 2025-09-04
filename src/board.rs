@@ -1,7 +1,7 @@
 use bevy::{platform::collections::HashMap, prelude::*};
 
 use crate::{
-    tetromino::{Tetromino, TetrominoKind, is_tetromino_pos_valid},
+    tetrominoes::{Tetromino, TetrominoKind, is_tetromino_pos_valid},
     try_unwrap,
 };
 
@@ -57,7 +57,7 @@ impl Board {
     }
 
     pub fn remove_tile(&mut self, pos: IVec2) -> Option<Entity> {
-        return self.tiles.remove(&pos);
+        self.tiles.remove(&pos)
     }
 }
 

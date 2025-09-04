@@ -1,20 +1,16 @@
 use bevy::prelude::*;
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 
-use crate::{
-    board::Board,
-    tetromino::{Tetromino, TetrominoUpdates, rotate_tetromino},
-    tile::{TileUpdates, TileVisuals},
-};
-
 mod board;
-mod tetromino;
+mod tetrominoes;
 mod tile;
 mod warnings;
 
-use board::*;
-use tetromino::*;
-use tile::*;
+use crate::{
+    board::{Board, BoardPlugin, TetrominoSpawning, spawn_board},
+    tetrominoes::{Tetromino, TetrominoPlugin, TetrominoUpdates, rotate_tetromino},
+    tile::{TilePlugin, TileUpdates, TileVisuals},
+};
 
 fn main() -> AppExit {
     App::new()
@@ -45,7 +41,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    commands.spawn((Camera2d::default(),));
+    commands.spawn((Camera2d,));
 
     spawn_board(
         &mut commands,

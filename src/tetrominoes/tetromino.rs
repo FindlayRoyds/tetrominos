@@ -2,7 +2,9 @@ use bevy::prelude::*;
 
 use crate::{
     board::Board,
-    tetromino::{TetrominoKind, TetrominoRotation, get_tetromino_shape, get_tetromino_wall_kicks},
+    tetrominoes::{
+        TetrominoKind, TetrominoRotation, get_tetromino_shape, get_tetromino_wall_kicks,
+    },
     tile::{Tile, spawn_tile},
     try_unwrap,
 };
@@ -72,7 +74,7 @@ pub fn is_tetromino_pos_valid(
         }
     }
 
-    return true;
+    true
 }
 
 pub fn rotate_tetromino(tetromino: &mut Tetromino, board: &Board, rotation: TetrominoRotation) {
