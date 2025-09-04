@@ -1,15 +1,14 @@
 use bevy::prelude::*;
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 
-mod game_board;
+mod board;
+mod tetrominoes;
 mod tile;
 mod warnings;
 
 use crate::{
-    game_board::{
-        Board, BoardPlugin, Tetromino, TetrominoPlugin, TetrominoSpawning, TetrominoUpdates,
-        rotate_tetromino, spawn_board,
-    },
+    board::{Board, BoardPlugin, TetrominoSpawning, spawn_board},
+    tetrominoes::{Tetromino, TetrominoPlugin, TetrominoUpdates, rotate_tetromino},
     tile::{TilePlugin, TileUpdates, TileVisuals},
 };
 

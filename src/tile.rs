@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{game_board::Board, try_unwrap};
+use crate::{board::Board, try_unwrap};
 
 pub struct TilePlugin;
 

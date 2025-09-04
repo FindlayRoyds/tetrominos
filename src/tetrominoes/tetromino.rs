@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 
 use crate::{
-    game_board::{
-        Board, TetrominoKind, TetrominoRotation, get_tetromino_shape, get_tetromino_wall_kicks,
+    board::Board,
+    tetrominoes::{
+        TetrominoKind, TetrominoRotation, get_tetromino_shape, get_tetromino_wall_kicks,
     },
     tile::{Tile, spawn_tile},
     try_unwrap,
