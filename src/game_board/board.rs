@@ -1,7 +1,7 @@
 use bevy::{platform::collections::HashMap, prelude::*};
 
 use crate::{
-    tetrominoes::{Tetromino, TetrominoKind, is_tetromino_pos_valid},
+    game_board::{Tetromino, TetrominoKind, is_tetromino_pos_valid},
     try_unwrap,
 };
 
