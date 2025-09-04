@@ -30,9 +30,10 @@ impl Plugin for TetrominoPlugin {
 pub struct Tetromino {
     pub kind: TetrominoKind,
     pub pos: IVec2,
-    pub rotation: i32,        // 0..4
-    pub vertical_offset: f32, // Sub block offset
-    pub lock_delay: i32,      // Num frames of delay left until being placed
+    pub rotation: i32, // 0..4
+    // pub vertical_offset: f32, // Sub block offset
+    pub sub_tile_offset: Vec2,
+    pub lock_delay: i32, // Num frames of delay left until being placed
 
     pub board_entity: Entity,
 }
@@ -43,7 +44,7 @@ impl Tetromino {
             kind,
             pos,
             rotation: 0,
-            vertical_offset: 0.0,
+            sub_tile_offset: vec2(0.0, 0.0),
             lock_delay,
 
             board_entity,
@@ -135,26 +136,47 @@ fn apply_gravity(mut tetrominoes: Query<&mut Tetromino>, boards: Query<&Board>) 
 
         let new_pos = tetromino.pos - ivec2(0, 1);
         if is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, new_pos, board) {
-            tetromino.vertical_offset -= 0.1;
+            tetromino.sub_tile_offset.y -= 0.05;
         }
     }
 }
 
 fn update_positions(mut tetrominoes: Query<&mut Tetromino>, boards: Query<&Board>) {
+    fn get_range(value: i32) -> Vec<i32> {
+        if value.is_positive() {
+            (1..=value).collect()
+        } else {
+            (value..0).rev().collect()
+        }
+    }
+
     for mut tetromino in tetrominoes.iter_mut() {
         let board = try_unwrap!(boards.get(tetromino.board_entity), "no board, up positions");
 
-        let total_offset = tetromino.vertical_offset.floor() as i32; // Negative number
-        let mut final_pos = tetromino.pos;
-        for offset in (total_offset..0).rev() {
-            let new_pos = tetromino.pos + ivec2(0, offset);
-            if is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, new_pos, board) {
-                final_pos = new_pos;
-            }
-        }
+        // let total_offset = tetromino
+        //     .sub_tile_offset
+        //     .abs()
+        //     .floor()
+        //     .copysign(tetromino.sub_tile_offset)
+        //     .as_ivec2();
+        let total_offset = tetromino.sub_tile_offset.floor().as_ivec2();
+        tetromino.sub_tile_offset -= total_offset.as_vec2();
 
-        tetromino.pos = final_pos;
-        tetromino.vertical_offset -= total_offset as f32;
+        bevy::log::info!("{:?}", get_range(total_offset.x));
+        for x_offset in get_range(total_offset.x) {
+            let new_pos = tetromino.pos + ivec2(x_offset, 0);
+            if !is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, new_pos, board) {
+                break;
+            }
+            tetromino.pos.x = new_pos.x;
+        }
+        for y_offset in get_range(total_offset.y) {
+            let new_pos = tetromino.pos + ivec2(0, y_offset);
+            if !is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, new_pos, board) {
+                break;
+            }
+            tetromino.pos.y = new_pos.y;
+        }
     }
 }
 

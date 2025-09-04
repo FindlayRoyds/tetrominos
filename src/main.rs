@@ -3,7 +3,7 @@ use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 
 use crate::{
     board::Board,
-    tetromino::{Tetromino, TetrominoUpdates, is_tetromino_pos_valid, rotate_tetromino},
+    tetromino::{Tetromino, TetrominoUpdates, rotate_tetromino},
     tile::{TileUpdates, TileVisuals},
 };
 
@@ -57,26 +57,21 @@ fn setup(
     );
 }
 
-fn move_tetrominoes(
-    mut tetrominoes: Query<&mut Tetromino>,
-    boards: Query<&Board>,
-    keyboard: Res<ButtonInput<KeyCode>>,
-) {
+fn move_tetrominoes(mut tetrominoes: Query<&mut Tetromino>, keyboard: Res<ButtonInput<KeyCode>>) {
     let mut movement = IVec2::ZERO;
-    if keyboard.just_pressed(KeyCode::KeyA) || keyboard.just_pressed(KeyCode::ArrowLeft) {
+    if keyboard.pressed(KeyCode::KeyA) || keyboard.pressed(KeyCode::ArrowLeft) {
         movement.x -= 1;
     }
-    if keyboard.just_pressed(KeyCode::KeyD) || keyboard.just_pressed(KeyCode::ArrowRight) {
+    if keyboard.pressed(KeyCode::KeyD) || keyboard.pressed(KeyCode::ArrowRight) {
         movement.x += 1;
     }
 
     for mut tetromino in tetrominoes.iter_mut() {
-        let board = try_unwrap!(boards.get(tetromino.board_entity), "No board in move");
-
-        let new_pos = tetromino.pos + movement;
-        if is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, new_pos, board) {
-            tetromino.pos = new_pos;
+        if movement.x == 0 {
+            tetromino.sub_tile_offset.x = 0.0;
+            return;
         }
+        tetromino.sub_tile_offset.x += movement.x as f32 * 0.125
     }
 }
 
