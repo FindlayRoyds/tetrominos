@@ -155,16 +155,9 @@ fn update_positions(mut tetrominoes: Query<&mut Tetromino>, boards: Query<&Board
     for mut tetromino in tetrominoes.iter_mut() {
         let board = try_unwrap!(boards.get(tetromino.board_entity), "no board, up positions");
 
-        // let total_offset = tetromino
-        //     .sub_tile_offset
-        //     .abs()
-        //     .floor()
-        //     .copysign(tetromino.sub_tile_offset)
-        //     .as_ivec2();
         let total_offset = tetromino.sub_tile_offset.floor().as_ivec2();
         tetromino.sub_tile_offset -= total_offset.as_vec2();
 
-        bevy::log::info!("{:?}", get_range(total_offset.x));
         for x_offset in get_range(total_offset.x) {
             let new_pos = tetromino.pos + ivec2(x_offset, 0);
             if !is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, new_pos, board) {
