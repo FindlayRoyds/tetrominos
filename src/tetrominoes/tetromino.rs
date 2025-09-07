@@ -17,9 +17,11 @@ impl Plugin for TetrominoPlugin {
             Update,
             (
                 clear_tiles,
+                apply_shift,
+                apply_auto_shift,
                 apply_gravity,
-                update_positions,
-                place,
+                apply_sub_tile_offset,
+                apply_placement,
                 spawn_tiles,
             )
                 .chain()
@@ -143,7 +145,23 @@ fn apply_gravity(mut tetrominoes: Query<&mut Tetromino>, boards: Query<&Board>) 
     }
 }
 
-fn update_positions(mut tetrominoes: Query<&mut Tetromino>, boards: Query<&Board>) {
+fn apply_shift(mut tetrominoes: Query<&mut Tetromino>, boards: Query<&Board>) {
+    for mut tetromino in tetrominoes.iter_mut() {
+        let board = try_unwrap!(boards.get(tetromino.board_entity), "No board, auto shift");
+
+        tetromino.sub_tile_offset.x += board.shift as f32;
+    }
+}
+
+fn apply_auto_shift(mut tetrominoes: Query<&mut Tetromino>, boards: Query<&Board>) {
+    for mut tetromino in tetrominoes.iter_mut() {
+        let board = try_unwrap!(boards.get(tetromino.board_entity), "No board, auto shift");
+
+        tetromino.sub_tile_offset.x += 0.25 * board.auto_shift as f32;
+    }
+}
+
+fn apply_sub_tile_offset(mut tetrominoes: Query<&mut Tetromino>, boards: Query<&Board>) {
     fn get_range(value: i32) -> Vec<i32> {
         if value.is_positive() {
             (1..=value).collect()
@@ -155,34 +173,31 @@ fn update_positions(mut tetrominoes: Query<&mut Tetromino>, boards: Query<&Board
     for mut tetromino in tetrominoes.iter_mut() {
         let board = try_unwrap!(boards.get(tetromino.board_entity), "no board, up positions");
 
+        tetromino.sub_tile_offset.x = tetromino.sub_tile_offset.x.clamp(-1.0, 1.0);
         let total_offset = tetromino.sub_tile_offset.floor().as_ivec2();
         tetromino.sub_tile_offset -= total_offset.as_vec2();
 
-        for x_offset in get_range(total_offset.x) {
-            let new_pos = tetromino.pos + ivec2(x_offset, 0);
-            if !is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, new_pos, board) {
-                break;
+        for (axis, dir) in [ivec2(1, 0), ivec2(0, 1)].iter().enumerate() {
+            for offset in get_range(total_offset[axis]) {
+                let new_pos = tetromino.pos + *dir * offset;
+                if !is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, new_pos, board) {
+                    tetromino.sub_tile_offset[axis] = 0.0;
+                    break;
+                }
+                tetromino.pos[axis] = new_pos[axis];
             }
-            tetromino.pos.x = new_pos.x;
-        }
-        for y_offset in get_range(total_offset.y) {
-            let new_pos = tetromino.pos + ivec2(0, y_offset);
-            if !is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, new_pos, board) {
-                break;
-            }
-            tetromino.pos.y = new_pos.y;
         }
     }
 }
 
-fn place(
+fn apply_placement(
     mut commands: Commands,
     mut tetrominoes: Query<(Entity, &mut Tetromino)>,
     boards: Query<&Board>,
     asset_server: Res<AssetServer>,
 ) {
     for (tetromino_entity, mut tetromino) in tetrominoes.iter_mut() {
-        let board = try_unwrap!(boards.get(tetromino.board_entity), "No board in fn place");
+        let board = try_unwrap!(boards.get(tetromino.board_entity), "No board in place");
 
         let new_pos = tetromino.pos - ivec2(0, 1);
         if is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, new_pos, board) {

@@ -23,6 +23,11 @@ pub struct Board {
     pub drop_delay: i32,
     pub drop_delay_counter: i32,
 
+    // Inputs
+    pub shift: i32,
+    pub auto_shift: i32,
+    pub auto_shift_delay: i32,
+
     tiles: HashMap<IVec2, Entity>,
 }
 
@@ -33,6 +38,10 @@ impl Board {
             tile_size,
             drop_delay,
             drop_delay_counter: drop_delay,
+
+            shift: 0,
+            auto_shift_delay: 0, // TODO set to config value, fine for now though
+            auto_shift: 0,
 
             tiles: HashMap::new(),
         }

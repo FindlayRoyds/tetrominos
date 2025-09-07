@@ -21,7 +21,7 @@ fn main() -> AppExit {
         .add_systems(Startup, setup)
         .add_systems(
             Update,
-            (rotate_tetrominoes, move_tetrominoes).before(TetrominoUpdates),
+            (rotate_tetrominoes, shift_input).before(TetrominoUpdates),
         )
         .configure_sets(
             Update,
@@ -53,21 +53,36 @@ fn setup(
     );
 }
 
-fn move_tetrominoes(mut tetrominoes: Query<&mut Tetromino>, keyboard: Res<ButtonInput<KeyCode>>) {
-    let mut movement = IVec2::ZERO;
+fn shift_input(mut boards: Query<&mut Board>, keyboard: Res<ButtonInput<KeyCode>>) {
+    let mut auto_shift = 0;
     if keyboard.pressed(KeyCode::KeyA) || keyboard.pressed(KeyCode::ArrowLeft) {
-        movement.x -= 1;
+        auto_shift -= 1;
     }
     if keyboard.pressed(KeyCode::KeyD) || keyboard.pressed(KeyCode::ArrowRight) {
-        movement.x += 1;
+        auto_shift += 1;
     }
 
-    for mut tetromino in tetrominoes.iter_mut() {
-        if movement.x == 0 {
-            tetromino.sub_tile_offset.x = 0.0;
-            return;
+    let mut shift = 0;
+    if keyboard.just_pressed(KeyCode::KeyA) || keyboard.just_pressed(KeyCode::ArrowLeft) {
+        shift -= 1;
+    }
+    if keyboard.just_pressed(KeyCode::KeyD) || keyboard.just_pressed(KeyCode::ArrowRight) {
+        shift += 1;
+    }
+
+    for mut board in boards.iter_mut() {
+        board.shift = shift;
+
+        if auto_shift == 0 {
+            board.auto_shift_delay = 10;
+            board.auto_shift = 0;
+            continue;
         }
-        tetromino.sub_tile_offset.x += movement.x as f32 * 0.125
+        if board.auto_shift_delay > 0 {
+            board.auto_shift_delay -= 1;
+            continue;
+        }
+        board.auto_shift = auto_shift;
     }
 }
 
