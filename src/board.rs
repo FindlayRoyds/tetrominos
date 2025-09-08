@@ -21,8 +21,6 @@ pub struct TetrominoSpawning;
 pub struct Board {
     pub size: UVec2,
     pub tile_size: UVec2,
-    pub drop_delay: i32,
-    pub drop_delay_counter: i32,
 
     // Inputs
     pub shift: i32,
@@ -36,12 +34,10 @@ pub struct Board {
 }
 
 impl Board {
-    pub fn new(size: UVec2, tile_size: UVec2, drop_delay: i32) -> Self {
+    pub fn new(size: UVec2, tile_size: UVec2) -> Self {
         Self {
             size,
             tile_size,
-            drop_delay,
-            drop_delay_counter: drop_delay,
 
             shift: 0,
             auto_shift_delay: 0, // TODO set to config value, fine for now though
@@ -118,14 +114,13 @@ pub fn spawn_board(
     commands: &mut Commands,
     size: UVec2,
     tile_size: UVec2,
-    drop_delay: i32,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
 ) {
     let rec_size = (size * tile_size).as_vec2();
     commands.spawn((
         Name::new("Board"),
-        Board::new(size, tile_size, drop_delay),
+        Board::new(size, tile_size),
         Mesh2d(meshes.add(Rectangle::new(rec_size.x, rec_size.y))),
         MeshMaterial2d(materials.add(Color::WHITE)),
         Transform::from_scale(vec3(4.0, 4.0, 4.0)),
@@ -134,11 +129,11 @@ pub fn spawn_board(
 
 fn spawn_next_tetromino(
     mut commands: Commands,
-    mut boards: Query<(Entity, &mut Board)>,
+    boards: Query<(Entity, &Board)>,
     tetrominoes: Query<&Tetromino>,
 ) {
-    let (board_entity, mut board) = try_unwrap!(
-        boards.single_mut(),
+    let (board_entity, board) = try_unwrap!(
+        boards.single(),
         "Expected one board when spawning tetromino"
     );
 
@@ -147,12 +142,6 @@ fn spawn_next_tetromino(
             return; // Already a tetromino on the board
         }
     }
-
-    if board.drop_delay_counter > 0 {
-        board.drop_delay_counter -= 1;
-        return;
-    }
-    board.drop_delay_counter = board.drop_delay;
 
     let kind = match fastrand::i32(0..7) {
         0 => TetrominoKind::I,

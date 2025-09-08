@@ -47,7 +47,6 @@ fn setup(
         &mut commands,
         uvec2(10, 20),
         uvec2(8, 8),
-        40,
         &mut meshes,
         &mut materials,
     );
