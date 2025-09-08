@@ -1,8 +1,8 @@
-use bevy::{platform::collections::HashMap, prelude::*};
+use bevy::prelude::*;
 
 use crate::{
     tetrominoes::{Tetromino, TetrominoKind, TetrominoRotation, get_tetromino_shape},
-    tile::spawn_tile,
+    tile::{Tile, spawn_tile},
     try_unwrap,
 };
 
@@ -38,8 +38,6 @@ pub struct Board {
     pub soft_drop: bool,
     pub hard_drop: bool,
     pub rotate: i32,
-
-    tiles: HashMap<IVec2, Entity>,
 }
 
 impl Board {
@@ -54,35 +52,29 @@ impl Board {
             soft_drop: false,
             hard_drop: false,
             rotate: 0,
-
-            tiles: HashMap::new(),
         }
     }
 
-    pub fn get_tile(&self, pos: IVec2) -> Option<Entity> {
-        self.tiles.get(&pos).copied()
+    pub fn get_tile(
+        &self,
+        board_entity: Entity,
+        pos: IVec2,
+        tiles: Query<(Entity, &Tile)>,
+    ) -> Option<Entity> {
+        tiles
+            .iter()
+            .find(|(_, tile)| tile.board_entity == board_entity && tile.pos == pos)
+            .map(|(entity, _)| entity)
     }
 
     pub fn is_in_bounds(&self, pos: IVec2) -> bool {
         pos.x >= 0 && pos.y >= 0 && pos.x < self.size.x as i32 && pos.y < self.size.y as i32
     }
 
-    pub fn set_tile(&mut self, pos: IVec2, entity: Entity) {
-        if !self.is_in_bounds(pos) {
-            bevy::log::error!("Tile position out of bounds in set_tile");
-        }
-        if self.tiles.contains_key(&pos) {
-            bevy::log::error!("Tile position already occupied in set_tile");
-        }
-        self.tiles.insert(pos, entity);
-    }
-
-    pub fn remove_tile(&mut self, pos: IVec2) -> Option<Entity> {
-        self.tiles.remove(&pos)
-    }
-
     pub fn can_place(
         &self,
+        board_entity: Entity,
+        tiles: Query<(Entity, &Tile)>,
         kind: TetrominoKind,
         rotation: TetrominoRotation,
         new_pos: IVec2,
@@ -90,7 +82,10 @@ impl Board {
         let shape = get_tetromino_shape(kind, rotation);
         for offset in shape.iter() {
             let pos = new_pos + offset;
-            if pos.x < 0 || pos.x >= self.size.x as i32 || pos.y < 0 || self.get_tile(pos).is_some()
+            if pos.x < 0
+                || pos.x >= self.size.x as i32
+                || pos.y < 0
+                || self.get_tile(board_entity, pos, tiles).is_some()
             {
                 return false;
             }
@@ -102,11 +97,19 @@ impl Board {
     pub fn place_tetromino(
         &mut self,
         commands: &mut Commands,
+        board_entity: Entity,
+        tiles: Query<(Entity, &Tile)>,
         tetromino: &Tetromino,
         tetromino_entity: Entity,
         asset_server: &Res<AssetServer>,
     ) {
-        if self.can_place(tetromino.kind, tetromino.rotation, tetromino.pos) {
+        if self.can_place(
+            board_entity,
+            tiles,
+            tetromino.kind,
+            tetromino.rotation,
+            tetromino.pos,
+        ) {
             for offset in get_tetromino_shape(tetromino.kind, tetromino.rotation) {
                 let pos = tetromino.pos + offset;
                 spawn_tile(commands, pos, tetromino.board_entity, true, asset_server);
@@ -139,6 +142,7 @@ pub fn spawn_board(
 fn spawn_next_tetromino(
     mut commands: Commands,
     boards: Query<(Entity, &Board)>,
+    tiles: Query<(Entity, &Tile)>,
     tetrominoes: Query<&Tetromino>,
 ) {
     let (board_entity, board) = try_unwrap!(
@@ -162,7 +166,7 @@ fn spawn_next_tetromino(
         _ => TetrominoKind::Z,
     }; // TODO replace with that one crate idk the name
     let pos = ivec2(4, board.size.y as i32 + 1);
-    if !board.can_place(kind, 0, pos) {
+    if !board.can_place(board_entity, tiles, kind, 0, pos) {
         bevy::log::error!("Attempted to spawn tetromino at invalid position");
         return;
     }
@@ -174,14 +178,18 @@ fn spawn_next_tetromino(
     });
 }
 
-fn clear_lines(mut commands: Commands, boards: Query<&Board>) {
-    for board in boards {
+fn clear_lines(
+    mut commands: Commands,
+    boards: Query<(Entity, &Board)>,
+    tiles: Query<(Entity, &Tile)>,
+) {
+    for (board_entity, board) in boards {
         // let mut num_cleared_lines = 0;
 
         for y in 0..board.size.y as i32 {
             let mut tile_entities: Vec<Entity> = vec![];
             for x in 0..board.size.x as i32 {
-                if let Some(tile_entity) = board.get_tile(ivec2(x, y)) {
+                if let Some(tile_entity) = board.get_tile(board_entity, ivec2(x, y), tiles) {
                     tile_entities.push(tile_entity);
                 }
             }

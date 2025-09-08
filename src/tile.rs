@@ -9,16 +9,14 @@ impl Plugin for TilePlugin {
         app.add_systems(
             Update,
             (update_tile_transforms, update_tile_visibility).in_set(TileVisuals),
-        )
-        .add_observer(on_add_tile)
-        .add_observer(on_remove_tile);
+        );
     }
 }
 
 #[derive(Component)]
 #[require(Transform)]
 pub struct Tile {
-    pos: IVec2,
+    pub pos: IVec2,
     pub board_entity: Entity,
 }
 
@@ -77,34 +75,4 @@ fn update_tile_visibility(mut tiles: Query<(&Tile, &mut Visibility)>, boards: Qu
             Visibility::Hidden
         };
     }
-}
-
-fn on_add_tile(
-    trigger: Trigger<OnAdd, PlacedTile>,
-    tiles: Query<&Tile>,
-    mut boards: Query<&mut Board>,
-) {
-    let tile = try_unwrap!(tiles.get(trigger.target()), "No tile in on_add_tile");
-    let mut board = try_unwrap!(boards.get_mut(tile.board_entity), "No board in on_add_tile");
-    if board.get_tile(tile.pos).is_some() {
-        bevy::log::error!("Tile pos already occupied in on_add_placed_tile")
-    }
-    board.set_tile(tile.pos, trigger.target());
-}
-
-fn on_remove_tile(
-    trigger: Trigger<OnRemove, PlacedTile>,
-    tiles: Query<&Tile>,
-    mut boards: Query<&mut Board>,
-) {
-    let tile = try_unwrap!(tiles.get(trigger.target()), "No tile in on_remove_tile");
-    let mut board = try_unwrap!(
-        boards.get_mut(tile.board_entity),
-        "Failed to get board in on_remove_tile"
-    );
-    if try_unwrap!(board.get_tile(tile.pos), "No board in on_remove_tile") != trigger.target() {
-        bevy::log::error!("Incorrect tile entity in board in on_remove_tile");
-    }
-
-    board.remove_tile(tile.pos);
 }
