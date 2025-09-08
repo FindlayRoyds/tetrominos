@@ -19,6 +19,7 @@ impl Plugin for TetrominoPlugin {
                 clear_tiles,
                 apply_shift,
                 apply_auto_shift,
+                apply_soft_drop,
                 apply_gravity,
                 apply_sub_tile_offset,
                 apply_placement,
@@ -62,28 +63,11 @@ pub struct TetrominoTile;
 #[derive(SystemSet, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct TetrominoUpdates;
 
-pub fn is_tetromino_pos_valid(
-    kind: TetrominoKind,
-    rotation: TetrominoRotation,
-    new_pos: IVec2,
-    board: &Board,
-) -> bool {
-    let shape = get_tetromino_shape(kind, rotation);
-    for offset in shape.iter() {
-        let pos = new_pos + offset;
-        if pos.x < 0 || pos.x >= board.size.x as i32 || pos.y < 0 || board.get_tile(pos).is_some() {
-            return false;
-        }
-    }
-
-    true
-}
-
 pub fn rotate_tetromino(tetromino: &mut Tetromino, board: &Board, rotation: TetrominoRotation) {
     let offsets = get_tetromino_wall_kicks(tetromino.rotation, rotation, tetromino.kind);
     for offset in offsets.iter() {
         let new_pos = tetromino.pos + offset;
-        if is_tetromino_pos_valid(tetromino.kind, rotation, new_pos, board) {
+        if board.can_place(tetromino.kind, rotation, new_pos) {
             tetromino.pos = new_pos;
             tetromino.rotation = rotation;
             return;
@@ -98,7 +82,7 @@ fn place_tetromino(
     board: &Board,
     asset_server: &Res<AssetServer>,
 ) {
-    if is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, tetromino.pos, board) {
+    if board.can_place(tetromino.kind, tetromino.rotation, tetromino.pos) {
         for offset in get_tetromino_shape(tetromino.kind, tetromino.rotation) {
             let pos = tetromino.pos + offset;
             spawn_tile(commands, pos, tetromino.board_entity, true, asset_server);
@@ -139,7 +123,7 @@ fn apply_gravity(mut tetrominoes: Query<&mut Tetromino>, boards: Query<&Board>) 
         let board = try_unwrap!(boards.get(tetromino.board_entity), "No board in fn gravity");
 
         let new_pos = tetromino.pos - ivec2(0, 1);
-        if is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, new_pos, board) {
+        if board.can_place(tetromino.kind, tetromino.rotation, new_pos) {
             tetromino.sub_tile_offset.y -= 0.05;
         }
     }
@@ -158,6 +142,16 @@ fn apply_auto_shift(mut tetrominoes: Query<&mut Tetromino>, boards: Query<&Board
         let board = try_unwrap!(boards.get(tetromino.board_entity), "No board, auto shift");
 
         tetromino.sub_tile_offset.x += 0.25 * board.auto_shift as f32;
+    }
+}
+
+fn apply_soft_drop(mut tetrominoes: Query<&mut Tetromino>, boards: Query<&Board>) {
+    for mut tetromino in tetrominoes.iter_mut() {
+        let board = try_unwrap!(boards.get(tetromino.board_entity), "No board, auto shift");
+
+        if board.soft_drop {
+            tetromino.sub_tile_offset.y -= 0.25;
+        }
     }
 }
 
@@ -180,7 +174,7 @@ fn apply_sub_tile_offset(mut tetrominoes: Query<&mut Tetromino>, boards: Query<&
         for (axis, dir) in [ivec2(1, 0), ivec2(0, 1)].iter().enumerate() {
             for offset in get_range(total_offset[axis]) {
                 let new_pos = tetromino.pos + *dir * offset;
-                if !is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, new_pos, board) {
+                if !board.can_place(tetromino.kind, tetromino.rotation, new_pos) {
                     tetromino.sub_tile_offset[axis] = 0.0;
                     break;
                 }
@@ -200,7 +194,7 @@ fn apply_placement(
         let board = try_unwrap!(boards.get(tetromino.board_entity), "No board in place");
 
         let new_pos = tetromino.pos - ivec2(0, 1);
-        if is_tetromino_pos_valid(tetromino.kind, tetromino.rotation, new_pos, board) {
+        if board.can_place(tetromino.kind, tetromino.rotation, new_pos) {
             return;
         }
 

@@ -1,7 +1,7 @@
 use bevy::{platform::collections::HashMap, prelude::*};
 
 use crate::{
-    tetrominoes::{Tetromino, TetrominoKind, is_tetromino_pos_valid},
+    tetrominoes::{Tetromino, TetrominoKind, TetrominoRotation, get_tetromino_shape},
     try_unwrap,
 };
 
@@ -27,6 +27,7 @@ pub struct Board {
     pub shift: i32,
     pub auto_shift: i32,
     pub auto_shift_delay: i32,
+    pub soft_drop: bool,
 
     tiles: HashMap<IVec2, Entity>,
 }
@@ -42,6 +43,7 @@ impl Board {
             shift: 0,
             auto_shift_delay: 0, // TODO set to config value, fine for now though
             auto_shift: 0,
+            soft_drop: false,
 
             tiles: HashMap::new(),
         }
@@ -67,6 +69,24 @@ impl Board {
 
     pub fn remove_tile(&mut self, pos: IVec2) -> Option<Entity> {
         self.tiles.remove(&pos)
+    }
+
+    pub fn can_place(
+        &self,
+        kind: TetrominoKind,
+        rotation: TetrominoRotation,
+        new_pos: IVec2,
+    ) -> bool {
+        let shape = get_tetromino_shape(kind, rotation);
+        for offset in shape.iter() {
+            let pos = new_pos + offset;
+            if pos.x < 0 || pos.x >= self.size.x as i32 || pos.y < 0 || self.get_tile(pos).is_some()
+            {
+                return false;
+            }
+        }
+
+        true
     }
 }
 
@@ -120,7 +140,7 @@ fn spawn_next_tetromino(
         _ => TetrominoKind::Z,
     }; // TODO replace with that one crate idk the name
     let pos = ivec2(4, board.size.y as i32);
-    if !is_tetromino_pos_valid(kind, 0, pos, &board) {
+    if !board.can_place(kind, 0, pos) {
         bevy::log::error!("Attempted to spawn tetromino at invalid position");
         return;
     }

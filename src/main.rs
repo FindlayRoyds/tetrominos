@@ -21,7 +21,7 @@ fn main() -> AppExit {
         .add_systems(Startup, setup)
         .add_systems(
             Update,
-            (rotate_tetrominoes, shift_input).before(TetrominoUpdates),
+            (input_rotate, input_shift, input_soft_drop).before(TetrominoUpdates),
         )
         .configure_sets(
             Update,
@@ -53,7 +53,21 @@ fn setup(
     );
 }
 
-fn shift_input(mut boards: Query<&mut Board>, keyboard: Res<ButtonInput<KeyCode>>) {
+fn input_rotate(
+    mut tetrominoes: Query<&mut Tetromino>,
+    boards: Query<&Board>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+) {
+    if keyboard.just_pressed(KeyCode::KeyW) || keyboard.just_pressed(KeyCode::ArrowUp) {
+        for mut tetromino in tetrominoes.iter_mut() {
+            let board = try_unwrap!(boards.get(tetromino.board_entity), "No board in rotate");
+            let new_rotation = (tetromino.rotation + 1) % 4;
+            rotate_tetromino(&mut tetromino, board, new_rotation);
+        }
+    }
+}
+
+fn input_shift(mut boards: Query<&mut Board>, keyboard: Res<ButtonInput<KeyCode>>) {
     let mut auto_shift = 0;
     if keyboard.pressed(KeyCode::KeyA) || keyboard.pressed(KeyCode::ArrowLeft) {
         auto_shift -= 1;
@@ -86,16 +100,9 @@ fn shift_input(mut boards: Query<&mut Board>, keyboard: Res<ButtonInput<KeyCode>
     }
 }
 
-fn rotate_tetrominoes(
-    mut tetrominoes: Query<&mut Tetromino>,
-    boards: Query<&Board>,
-    keyboard: Res<ButtonInput<KeyCode>>,
-) {
-    if keyboard.just_pressed(KeyCode::KeyW) || keyboard.just_pressed(KeyCode::ArrowUp) {
-        for mut tetromino in tetrominoes.iter_mut() {
-            let board = try_unwrap!(boards.get(tetromino.board_entity), "No board in rotate");
-            let new_rotation = (tetromino.rotation + 1) % 4;
-            rotate_tetromino(&mut tetromino, board, new_rotation);
-        }
+fn input_soft_drop(mut boards: Query<&mut Board>, keyboard: Res<ButtonInput<KeyCode>>) {
+    let soft_drop = keyboard.pressed(KeyCode::KeyS) || keyboard.pressed(KeyCode::ArrowDown);
+    for mut board in boards.iter_mut() {
+        board.soft_drop = soft_drop;
     }
 }
