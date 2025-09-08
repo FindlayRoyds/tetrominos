@@ -206,7 +206,7 @@ fn clear_lines(
             } else if num_cleared_lines > 0 {
                 for (tile_entity, _) in tile_entities {
                     if let Ok((_, mut tile)) = tile_queries.p1().get_mut(tile_entity) {
-                        tile.pos = tile.pos - ivec2(0, num_cleared_lines);
+                        tile.pos -= ivec2(0, num_cleared_lines);
                     }
                 }
             }
