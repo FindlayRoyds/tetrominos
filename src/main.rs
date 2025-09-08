@@ -21,7 +21,7 @@ fn main() -> AppExit {
         .add_systems(Startup, setup)
         .add_systems(
             Update,
-            (input_rotate, input_shift, input_soft_drop).before(TetrominoUpdates),
+            (input_rotate, input_shift, input_soft_drop, input_hard_drop).before(TetrominoUpdates),
         )
         .configure_sets(
             Update,
@@ -104,5 +104,12 @@ fn input_soft_drop(mut boards: Query<&mut Board>, keyboard: Res<ButtonInput<KeyC
     let soft_drop = keyboard.pressed(KeyCode::KeyS) || keyboard.pressed(KeyCode::ArrowDown);
     for mut board in boards.iter_mut() {
         board.soft_drop = soft_drop;
+    }
+}
+
+fn input_hard_drop(mut boards: Query<&mut Board>, keyboard: Res<ButtonInput<KeyCode>>) {
+    let hard_drop = keyboard.pressed(KeyCode::Space);
+    for mut board in boards.iter_mut() {
+        board.hard_drop = hard_drop;
     }
 }

@@ -28,6 +28,7 @@ pub struct Board {
     pub auto_shift: i32,
     pub auto_shift_delay: i32,
     pub soft_drop: bool,
+    pub hard_drop: bool,
 
     tiles: HashMap<IVec2, Entity>,
 }
@@ -44,6 +45,7 @@ impl Board {
             auto_shift_delay: 0, // TODO set to config value, fine for now though
             auto_shift: 0,
             soft_drop: false,
+            hard_drop: false,
 
             tiles: HashMap::new(),
         }

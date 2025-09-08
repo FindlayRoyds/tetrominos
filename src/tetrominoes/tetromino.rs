@@ -20,6 +20,7 @@ impl Plugin for TetrominoPlugin {
                 apply_shift,
                 apply_auto_shift,
                 apply_soft_drop,
+                apply_hard_drop,
                 apply_gravity,
                 apply_sub_tile_offset,
                 apply_placement,
@@ -151,6 +152,34 @@ fn apply_soft_drop(mut tetrominoes: Query<&mut Tetromino>, boards: Query<&Board>
 
         if board.soft_drop {
             tetromino.sub_tile_offset.y -= 0.25;
+        }
+    }
+}
+
+fn apply_hard_drop(
+    mut commands: Commands,
+    mut tetrominoes: Query<(Entity, &mut Tetromino)>,
+    boards: Query<&Board>,
+    asset_server: Res<AssetServer>,
+) {
+    for (tetromino_entity, mut tetromino) in tetrominoes.iter_mut() {
+        let board = try_unwrap!(boards.get(tetromino.board_entity), "No board, auto shift");
+
+        if board.hard_drop {
+            for y_pos in 0..tetromino.pos.y {
+                let new_pos = ivec2(tetromino.pos.x, y_pos);
+                if board.can_place(tetromino.kind, tetromino.rotation, new_pos) {
+                    tetromino.pos = new_pos;
+                    place_tetromino(
+                        &mut commands,
+                        &tetromino,
+                        tetromino_entity,
+                        board,
+                        &asset_server,
+                    );
+                    break;
+                }
+            }
         }
     }
 }
