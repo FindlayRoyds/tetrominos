@@ -8,7 +8,7 @@ mod warnings;
 
 use crate::{
     board::{Board, BoardPlugin, TetrominoSpawning, spawn_board},
-    tetrominoes::{Tetromino, TetrominoPlugin, TetrominoUpdates, rotate_tetromino},
+    tetrominoes::{TetrominoPlugin, TetrominoUpdates},
     tile::{TilePlugin, TileUpdates, TileVisuals},
 };
 
@@ -53,17 +53,16 @@ fn setup(
     );
 }
 
-fn input_rotate(
-    mut tetrominoes: Query<&mut Tetromino>,
-    boards: Query<&Board>,
-    keyboard: Res<ButtonInput<KeyCode>>,
-) {
-    if keyboard.just_pressed(KeyCode::KeyW) || keyboard.just_pressed(KeyCode::ArrowUp) {
-        for mut tetromino in tetrominoes.iter_mut() {
-            let board = try_unwrap!(boards.get(tetromino.board_entity), "No board in rotate");
-            let new_rotation = (tetromino.rotation + 1) % 4;
-            rotate_tetromino(&mut tetromino, board, new_rotation);
-        }
+fn input_rotate(mut boards: Query<&mut Board>, keyboard: Res<ButtonInput<KeyCode>>) {
+    let rotation =
+        if keyboard.just_pressed(KeyCode::KeyW) || keyboard.just_pressed(KeyCode::ArrowUp) {
+            1
+        } else {
+            0
+        };
+
+    for mut board in boards.iter_mut() {
+        board.rotate = rotation;
     }
 }
 

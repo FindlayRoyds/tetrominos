@@ -2,6 +2,7 @@ use bevy::{platform::collections::HashMap, prelude::*};
 
 use crate::{
     tetrominoes::{Tetromino, TetrominoKind, TetrominoRotation, get_tetromino_shape},
+    tile::spawn_tile,
     try_unwrap,
 };
 
@@ -29,6 +30,7 @@ pub struct Board {
     pub auto_shift_delay: i32,
     pub soft_drop: bool,
     pub hard_drop: bool,
+    pub rotate: i32,
 
     tiles: HashMap<IVec2, Entity>,
 }
@@ -46,6 +48,7 @@ impl Board {
             auto_shift: 0,
             soft_drop: false,
             hard_drop: false,
+            rotate: 0,
 
             tiles: HashMap::new(),
         }
@@ -89,6 +92,25 @@ impl Board {
         }
 
         true
+    }
+
+    pub fn place_tetromino(
+        &mut self,
+        commands: &mut Commands,
+        tetromino: &Tetromino,
+        tetromino_entity: Entity,
+        asset_server: &Res<AssetServer>,
+    ) {
+        if self.can_place(tetromino.kind, tetromino.rotation, tetromino.pos) {
+            for offset in get_tetromino_shape(tetromino.kind, tetromino.rotation) {
+                let pos = tetromino.pos + offset;
+                spawn_tile(commands, pos, tetromino.board_entity, true, asset_server);
+            }
+        } else {
+            bevy::log::error!("Failed to place tetromino at {:?}", tetromino.pos);
+        }
+
+        commands.entity(tetromino_entity).despawn();
     }
 }
 

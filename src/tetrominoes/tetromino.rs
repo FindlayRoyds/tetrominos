@@ -2,9 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     board::Board,
-    tetrominoes::{
-        TetrominoKind, TetrominoRotation, get_tetromino_shape, get_tetromino_wall_kicks,
-    },
+    tetrominoes::{TetrominoKind, get_tetromino_shape, get_tetromino_wall_kicks},
     tile::{Tile, spawn_tile},
     try_unwrap,
 };
@@ -22,6 +20,7 @@ impl Plugin for TetrominoPlugin {
                 apply_soft_drop,
                 apply_hard_drop,
                 apply_gravity,
+                apply_rotation,
                 apply_sub_tile_offset,
                 apply_placement,
                 spawn_tiles,
@@ -63,39 +62,6 @@ pub struct TetrominoTile;
 
 #[derive(SystemSet, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct TetrominoUpdates;
-
-pub fn rotate_tetromino(tetromino: &mut Tetromino, board: &Board, rotation: TetrominoRotation) {
-    let offsets = get_tetromino_wall_kicks(tetromino.rotation, rotation, tetromino.kind);
-    for offset in offsets.iter() {
-        let new_pos = tetromino.pos + offset;
-        if board.can_place(tetromino.kind, rotation, new_pos) {
-            tetromino.pos = new_pos;
-            tetromino.rotation = rotation;
-            return;
-        }
-    }
-}
-
-fn place_tetromino(
-    commands: &mut Commands,
-    tetromino: &Tetromino,
-    tetromino_entity: Entity,
-    board: &Board,
-    asset_server: &Res<AssetServer>,
-) {
-    if board.can_place(tetromino.kind, tetromino.rotation, tetromino.pos) {
-        for offset in get_tetromino_shape(tetromino.kind, tetromino.rotation) {
-            let pos = tetromino.pos + offset;
-            spawn_tile(commands, pos, tetromino.board_entity, true, asset_server);
-        }
-    } else {
-        bevy::log::error!("Failed to place tetromino at {:?}", tetromino.pos);
-    }
-
-    commands.entity(tetromino_entity).despawn();
-}
-
-// ========== Systems ==========
 
 fn clear_tiles(mut commands: Commands, tiles: Query<Entity, (With<Tile>, With<TetrominoTile>)>) {
     for tile_entity in tiles.iter() {
@@ -148,7 +114,7 @@ fn apply_auto_shift(mut tetrominoes: Query<&mut Tetromino>, boards: Query<&Board
 
 fn apply_soft_drop(mut tetrominoes: Query<&mut Tetromino>, boards: Query<&Board>) {
     for mut tetromino in tetrominoes.iter_mut() {
-        let board = try_unwrap!(boards.get(tetromino.board_entity), "No board, auto shift");
+        let board = try_unwrap!(boards.get(tetromino.board_entity), "No board, soft drop");
 
         if board.soft_drop {
             tetromino.sub_tile_offset.y -= 0.25;
@@ -159,26 +125,45 @@ fn apply_soft_drop(mut tetrominoes: Query<&mut Tetromino>, boards: Query<&Board>
 fn apply_hard_drop(
     mut commands: Commands,
     mut tetrominoes: Query<(Entity, &mut Tetromino)>,
-    boards: Query<&Board>,
+    mut boards: Query<&mut Board>,
     asset_server: Res<AssetServer>,
 ) {
     for (tetromino_entity, mut tetromino) in tetrominoes.iter_mut() {
-        let board = try_unwrap!(boards.get(tetromino.board_entity), "No board, auto shift");
+        let mut board = try_unwrap!(
+            boards.get_mut(tetromino.board_entity),
+            "No board, hard drop"
+        );
 
         if board.hard_drop {
             for y_pos in 0..tetromino.pos.y {
                 let new_pos = ivec2(tetromino.pos.x, y_pos);
                 if board.can_place(tetromino.kind, tetromino.rotation, new_pos) {
                     tetromino.pos = new_pos;
-                    place_tetromino(
+                    board.place_tetromino(
                         &mut commands,
                         &tetromino,
                         tetromino_entity,
-                        board,
                         &asset_server,
                     );
                     break;
                 }
+            }
+        }
+    }
+}
+
+pub fn apply_rotation(mut tetrominoes: Query<&mut Tetromino>, boards: Query<&Board>) {
+    for mut tetromino in tetrominoes.iter_mut() {
+        let board = try_unwrap!(boards.get(tetromino.board_entity), "No board, rotate");
+
+        let new_rotation = tetromino.rotation + board.rotate;
+        let offsets = get_tetromino_wall_kicks(tetromino.rotation, new_rotation, tetromino.kind);
+        for offset in offsets.iter() {
+            let new_pos = tetromino.pos + offset;
+            if board.can_place(tetromino.kind, new_rotation, new_pos) {
+                tetromino.pos = new_pos;
+                tetromino.rotation = new_rotation;
+                return;
             }
         }
     }
@@ -216,11 +201,11 @@ fn apply_sub_tile_offset(mut tetrominoes: Query<&mut Tetromino>, boards: Query<&
 fn apply_placement(
     mut commands: Commands,
     mut tetrominoes: Query<(Entity, &mut Tetromino)>,
-    boards: Query<&Board>,
+    mut boards: Query<&mut Board>,
     asset_server: Res<AssetServer>,
 ) {
     for (tetromino_entity, mut tetromino) in tetrominoes.iter_mut() {
-        let board = try_unwrap!(boards.get(tetromino.board_entity), "No board in place");
+        let mut board = try_unwrap!(boards.get_mut(tetromino.board_entity), "No board in place");
 
         let new_pos = tetromino.pos - ivec2(0, 1);
         if board.can_place(tetromino.kind, tetromino.rotation, new_pos) {
@@ -229,13 +214,7 @@ fn apply_placement(
 
         tetromino.lock_delay -= 1;
         if tetromino.lock_delay < 0 {
-            place_tetromino(
-                &mut commands,
-                &tetromino,
-                tetromino_entity,
-                board,
-                &asset_server,
-            );
+            board.place_tetromino(&mut commands, &tetromino, tetromino_entity, &asset_server);
         }
     }
 }
