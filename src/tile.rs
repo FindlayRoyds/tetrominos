@@ -18,12 +18,9 @@ impl Plugin for TilePlugin {
 pub struct Tile {
     pub pos: IVec2,
     pub board_entity: Entity,
+    pub placed: bool,
 }
 
-#[derive(Component)]
-pub struct PlacedTile;
-
-// Should be updated to return entity commands
 pub fn spawn_tile(
     commands: &mut Commands,
     pos: IVec2,
@@ -31,21 +28,18 @@ pub fn spawn_tile(
     placed: bool,
     asset_server: &Res<AssetServer>,
 ) -> Entity {
-    let tile_image = asset_server.load("tiles/tile.png");
-
-    let mut tile_commands = commands.spawn((
-        Name::new("Tile"),
-        Tile { pos, board_entity },
-        ChildOf(board_entity),
-        Sprite::from_image(tile_image),
-    ));
-    // tile_commands.insert();
-
-    if placed {
-        tile_commands.insert(PlacedTile);
-    }
-
-    tile_commands.id()
+    commands
+        .spawn((
+            Name::new("Tile"),
+            Tile {
+                pos,
+                board_entity,
+                placed,
+            },
+            ChildOf(board_entity),
+            Sprite::from_image(asset_server.load("tiles/tile.png")),
+        ))
+        .id()
 }
 
 /// Systems that only read tile components, run after updates to tiles

@@ -63,7 +63,7 @@ impl Board {
     ) -> Option<Entity> {
         tiles
             .iter()
-            .find(|(_, tile)| tile.board_entity == board_entity && tile.pos == pos)
+            .find(|(_, tile)| tile.placed && tile.board_entity == board_entity && tile.pos == pos)
             .map(|(entity, _)| entity)
     }
 
@@ -180,26 +180,33 @@ fn spawn_next_tetromino(
 
 fn clear_lines(
     mut commands: Commands,
-    boards: Query<(Entity, &Board)>,
-    tiles: Query<(Entity, &Tile)>,
+    mut boards: Query<(Entity, &mut Board)>,
+    mut tile_queries: ParamSet<(Query<(Entity, &Tile)>, Query<(Entity, &mut Tile)>)>,
 ) {
-    for (board_entity, board) in boards {
-        // let mut num_cleared_lines = 0;
+    for (board_entity, board) in boards.iter_mut() {
+        let mut num_cleared_lines = 0;
 
         for y in 0..board.size.y as i32 {
-            let mut tile_entities: Vec<Entity> = vec![];
+            let mut tile_entities: Vec<(Entity, IVec2)> = vec![];
             for x in 0..board.size.x as i32 {
-                if let Some(tile_entity) = board.get_tile(board_entity, ivec2(x, y), tiles) {
-                    tile_entities.push(tile_entity);
+                if let Some(tile_entity) =
+                    board.get_tile(board_entity, ivec2(x, y), tile_queries.p0())
+                {
+                    tile_entities.push((tile_entity, ivec2(x, y)));
                 }
             }
 
-            // Line is full
             if tile_entities.len() == board.size.x as usize {
-                // num_cleared_lines += 1;
-                for tile_entity in tile_entities {
+                num_cleared_lines += 1;
+                for (tile_entity, _) in tile_entities {
                     if let Ok(mut tile_commands) = commands.get_entity(tile_entity) {
                         tile_commands.despawn();
+                    }
+                }
+            } else if num_cleared_lines > 0 {
+                for (tile_entity, _) in tile_entities {
+                    if let Ok((_, mut tile)) = tile_queries.p1().get_mut(tile_entity) {
+                        tile.pos = tile.pos - ivec2(0, num_cleared_lines);
                     }
                 }
             }
