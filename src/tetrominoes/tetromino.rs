@@ -135,7 +135,7 @@ fn apply_hard_drop(
         );
 
         if board.hard_drop {
-            for y_pos in 0..tetromino.pos.y {
+            for y_pos in 0..=tetromino.pos.y {
                 let new_pos = ivec2(tetromino.pos.x, y_pos);
                 if board.can_place(tetromino.kind, tetromino.rotation, new_pos) {
                     tetromino.pos = new_pos;
