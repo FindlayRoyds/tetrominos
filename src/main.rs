@@ -106,7 +106,7 @@ fn input_soft_drop(mut boards: Query<&mut Board>, keyboard: Res<ButtonInput<KeyC
 }
 
 fn input_hard_drop(mut boards: Query<&mut Board>, keyboard: Res<ButtonInput<KeyCode>>) {
-    let hard_drop = keyboard.pressed(KeyCode::Space);
+    let hard_drop = keyboard.just_pressed(KeyCode::Space);
     for mut board in boards.iter_mut() {
         board.hard_drop = hard_drop;
     }

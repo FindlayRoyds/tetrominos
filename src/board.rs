@@ -152,7 +152,7 @@ fn spawn_next_tetromino(
         5 => TetrominoKind::T,
         _ => TetrominoKind::Z,
     }; // TODO replace with that one crate idk the name
-    let pos = ivec2(4, board.size.y as i32);
+    let pos = ivec2(4, board.size.y as i32 + 1);
     if !board.can_place(kind, 0, pos) {
         bevy::log::error!("Attempted to spawn tetromino at invalid position");
         return;
