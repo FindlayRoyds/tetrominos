@@ -10,12 +10,21 @@ pub struct BoardPlugin;
 
 impl Plugin for BoardPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, spawn_next_tetromino.in_set(TetrominoSpawning));
+        app.add_systems(
+            Update,
+            (
+                spawn_next_tetromino.in_set(TetrominoSpawning),
+                clear_lines.in_set(LineClearing),
+            ),
+        );
     }
 }
 
 #[derive(SystemSet, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct TetrominoSpawning;
+
+#[derive(SystemSet, Debug, Clone, Hash, Eq, PartialEq)]
+pub struct LineClearing;
 
 #[derive(Component)]
 pub struct Board {
@@ -163,4 +172,29 @@ fn spawn_next_tetromino(
             Tetromino::new(kind, pos, 80, board_entity),
         ));
     });
+}
+
+fn clear_lines(mut commands: Commands, boards: Query<&Board>) {
+    for board in boards {
+        // let mut num_cleared_lines = 0;
+
+        for y in 0..board.size.y as i32 {
+            let mut tile_entities: Vec<Entity> = vec![];
+            for x in 0..board.size.x as i32 {
+                if let Some(tile_entity) = board.get_tile(ivec2(x, y)) {
+                    tile_entities.push(tile_entity);
+                }
+            }
+
+            // Line is full
+            if tile_entities.len() == board.size.x as usize {
+                // num_cleared_lines += 1;
+                for tile_entity in tile_entities {
+                    if let Ok(mut tile_commands) = commands.get_entity(tile_entity) {
+                        tile_commands.despawn();
+                    }
+                }
+            }
+        }
+    }
 }

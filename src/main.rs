@@ -7,7 +7,7 @@ mod tile;
 mod warnings;
 
 use crate::{
-    board::{Board, BoardPlugin, TetrominoSpawning, spawn_board},
+    board::{Board, BoardPlugin, LineClearing, TetrominoSpawning, spawn_board},
     tetrominoes::{TetrominoPlugin, TetrominoUpdates},
     tile::{TilePlugin, TileUpdates, TileVisuals},
 };
@@ -29,6 +29,7 @@ fn main() -> AppExit {
                 TetrominoSpawning,
                 TetrominoUpdates,
                 TileUpdates,
+                LineClearing,
                 TileVisuals,
             )
                 .chain(),
