@@ -100,7 +100,6 @@ impl Board {
             self.tetromino_rotation,
         ) {
             bevy::log::error!("Attempted to spawn tetromino at invalid position");
-            return;
         }
     }
 
