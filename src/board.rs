@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use leafwing_input_manager::prelude::ActionState;
 use strum::IntoEnumIterator;
 
 pub mod placed_tile;
@@ -11,6 +12,7 @@ use crate::{
             TetrominoKind, TetrominoRotation, get_tetromino_shape, get_tetromino_wall_kicks,
         },
     },
+    input::{Action, get_board_input_map},
     tiles::{Tile, Tilemap, spawn_tile},
     try_unwrap,
 };
@@ -48,36 +50,23 @@ pub struct BoardUpdates;
 
 #[derive(Component)]
 pub struct Board {
-    tetronimo_kind: TetrominoKind,
-    tetromino_pos: IVec2,
-    tetromino_rotation: TetrominoRotation,
-    tetromino_sub_tile_offset: Vec2,
-    tetromino_lock_delay: i32,
-
-    // Inputs
-    pub shift_input: i32,
-    pub auto_shift_input: i32,
-    pub auto_shift_delay_input: i32,
-    pub soft_drop_input: bool,
-    pub hard_drop_input: bool,
-    pub rotate_input: i32,
+    kind: TetrominoKind,
+    pos: IVec2,
+    rotation: TetrominoRotation,
+    sub_tile_offset: Vec2,
+    lock_delay: i32,
+    auto_shift_delay: i32,
 }
 
 impl Board {
     pub fn new(kind: TetrominoKind, pos: IVec2) -> Self {
         Self {
-            tetronimo_kind: kind,
-            tetromino_pos: pos,
-            tetromino_rotation: 0,
-            tetromino_sub_tile_offset: vec2(0.0, 0.0),
-            tetromino_lock_delay: 80,
-
-            shift_input: 0,
-            auto_shift_delay_input: 0,
-            auto_shift_input: 0,
-            soft_drop_input: false,
-            hard_drop_input: false,
-            rotate_input: 0,
+            kind,
+            pos,
+            rotation: 0,
+            sub_tile_offset: vec2(0.0, 0.0),
+            lock_delay: 80,
+            auto_shift_delay: 10,
         }
     }
 
@@ -88,17 +77,11 @@ impl Board {
         placed_tiles: Query<(Entity, &Tile), With<PlacedTile>>,
     ) {
         let kind_variants: Vec<TetrominoKind> = TetrominoKind::iter().collect();
-        self.tetronimo_kind = kind_variants[fastrand::usize(..kind_variants.len())];
-        self.tetromino_pos = ivec2(4, tilemap.size.y as i32 + 1);
-        self.tetromino_rotation = 0;
-        self.tetromino_lock_delay = 80;
-        if !self.can_place(
-            self_entity,
-            tilemap,
-            placed_tiles,
-            self.tetromino_pos,
-            self.tetromino_rotation,
-        ) {
+        self.kind = kind_variants[fastrand::usize(..kind_variants.len())];
+        self.pos = ivec2(4, tilemap.size.y as i32 + 1);
+        self.rotation = 0;
+        self.lock_delay = 80;
+        if !self.can_place(self_entity, tilemap, placed_tiles, self.pos, self.rotation) {
             bevy::log::error!("Attempted to spawn tetromino at invalid position");
         }
     }
@@ -111,7 +94,7 @@ impl Board {
         new_pos: IVec2,
         new_rotation: TetrominoRotation,
     ) -> bool {
-        let shape = get_tetromino_shape(self.tetronimo_kind, new_rotation);
+        let shape = get_tetromino_shape(self.kind, new_rotation);
         for offset in shape.iter() {
             let pos = new_pos + offset;
             if pos.x < 0
@@ -134,19 +117,13 @@ impl Board {
         placed_tiles: Query<(Entity, &Tile), With<PlacedTile>>,
         asset_server: &Res<AssetServer>,
     ) {
-        if self.can_place(
-            self_entity,
-            tilemap,
-            placed_tiles,
-            self.tetromino_pos,
-            self.tetromino_rotation,
-        ) {
-            for offset in get_tetromino_shape(self.tetronimo_kind, self.tetromino_rotation) {
-                let pos = self.tetromino_pos + offset;
+        if self.can_place(self_entity, tilemap, placed_tiles, self.pos, self.rotation) {
+            for offset in get_tetromino_shape(self.kind, self.rotation) {
+                let pos = self.pos + offset;
                 spawn_tile(commands, pos, self_entity, true, asset_server);
             }
         } else {
-            bevy::log::error!("Failed to place tetromino at {:?}", self.tetromino_pos);
+            bevy::log::error!("Failed to place tetromino at {:?}", self.pos);
         }
         self.spawn_next(self_entity, tilemap, placed_tiles);
     }
@@ -170,6 +147,7 @@ pub fn spawn_board(
             Mesh2d(meshes.add(Rectangle::new(rec_size.x, rec_size.y))),
             MeshMaterial2d(materials.add(Color::WHITE)),
             Transform::from_scale(vec3(4.0, 4.0, 4.0)),
+            get_board_input_map(),
         ))
         .id();
 
@@ -225,8 +203,8 @@ fn spawn_tiles(
     asset_server: Res<AssetServer>,
 ) {
     for (board_entity, board) in boards.iter() {
-        for offset in get_tetromino_shape(board.tetronimo_kind, board.tetromino_rotation) {
-            let pos = board.tetromino_pos + offset;
+        for offset in get_tetromino_shape(board.kind, board.rotation) {
+            let pos = board.pos + offset;
             let tile_entity = spawn_tile(&mut commands, pos, board_entity, false, &asset_server);
             try_unwrap!(commands.get_entity(tile_entity), "no entity in spawn tile")
                 .insert(TetrominoTile);
@@ -239,57 +217,66 @@ fn apply_gravity(
     placed_tiles: Query<(Entity, &Tile), With<PlacedTile>>,
 ) {
     for (board_entity, mut board, tilemap) in boards.iter_mut() {
-        let new_pos = board.tetromino_pos - ivec2(0, 1);
-        if board.can_place(
-            board_entity,
-            tilemap,
-            placed_tiles,
-            new_pos,
-            board.tetromino_rotation,
-        ) {
-            board.tetromino_sub_tile_offset.y -= 0.05;
+        let new_pos = board.pos - ivec2(0, 1);
+        if board.can_place(board_entity, tilemap, placed_tiles, new_pos, board.rotation) {
+            board.sub_tile_offset.y -= 0.05;
         }
     }
 }
 
-fn apply_shift(mut boards: Query<&mut Board>) {
-    for mut board in boards.iter_mut() {
-        board.tetromino_sub_tile_offset.x += board.shift_input as f32;
+fn apply_shift(mut boards: Query<(&ActionState<Action>, &mut Board)>) {
+    for (action_state, mut board) in boards.iter_mut() {
+        if action_state.just_pressed(&Action::ShiftLeft) {
+            board.sub_tile_offset.x -= 1.0;
+        } else if action_state.just_pressed(&Action::ShiftRight) {
+            board.sub_tile_offset.x += 1.0;
+        }
     }
 }
 
-fn apply_auto_shift(mut boards: Query<&mut Board>) {
-    for mut board in boards.iter_mut() {
-        board.tetromino_sub_tile_offset.x += 0.25 * board.auto_shift_input as f32;
+fn apply_auto_shift(mut boards: Query<(&ActionState<Action>, &mut Board)>) {
+    for (action_state, mut board) in boards.iter_mut() {
+        let shift = if action_state.pressed(&Action::ShiftLeft) {
+            -1
+        } else if action_state.pressed(&Action::ShiftRight) {
+            1
+        } else {
+            0
+        };
+
+        if shift == 0 {
+            board.auto_shift_delay = 10;
+            continue;
+        }
+        if board.auto_shift_delay > 0 {
+            board.auto_shift_delay -= 1;
+            continue;
+        }
+
+        board.sub_tile_offset.x += 0.25 * shift as f32;
     }
 }
 
-fn apply_soft_drop(mut boards: Query<&mut Board>) {
-    for mut board in boards.iter_mut() {
-        if board.soft_drop_input {
-            board.tetromino_sub_tile_offset.y -= 0.25;
+fn apply_soft_drop(mut boards: Query<(&ActionState<Action>, &mut Board)>) {
+    for (action_state, mut board) in boards.iter_mut() {
+        if action_state.pressed(&Action::SoftDrop) {
+            board.sub_tile_offset.y -= 0.25;
         }
     }
 }
 
 fn apply_hard_drop(
     mut commands: Commands,
-    mut boards: Query<(Entity, &mut Board, &Tilemap)>,
+    mut boards: Query<(Entity, &ActionState<Action>, &mut Board, &Tilemap)>,
     placed_tiles: Query<(Entity, &Tile), With<PlacedTile>>,
     asset_server: Res<AssetServer>,
 ) {
-    for (board_entity, mut board, tilemap) in boards.iter_mut() {
-        if board.hard_drop_input {
-            for y_pos in 0..=board.tetromino_pos.y {
-                let new_pos = ivec2(board.tetromino_pos.x, y_pos);
-                if board.can_place(
-                    board_entity,
-                    tilemap,
-                    placed_tiles,
-                    new_pos,
-                    board.tetromino_rotation,
-                ) {
-                    board.tetromino_pos = new_pos;
+    for (board_entity, action_state, mut board, tilemap) in boards.iter_mut() {
+        if action_state.just_pressed(&Action::HardDrop) {
+            for y_pos in 0..=board.pos.y {
+                let new_pos = ivec2(board.pos.x, y_pos);
+                if board.can_place(board_entity, tilemap, placed_tiles, new_pos, board.rotation) {
+                    board.pos = new_pos;
                     board.place(
                         &mut commands,
                         board_entity,
@@ -305,18 +292,24 @@ fn apply_hard_drop(
 }
 
 pub fn apply_rotation(
-    mut boards: Query<(Entity, &mut Board, &Tilemap)>,
+    mut boards: Query<(Entity, &ActionState<Action>, &mut Board, &Tilemap)>,
     placed_tiles: Query<(Entity, &Tile), With<PlacedTile>>,
 ) {
-    for (board_entity, mut board, tilemap) in boards.iter_mut() {
-        let new_rotation = board.tetromino_rotation + board.rotate_input;
-        let offsets =
-            get_tetromino_wall_kicks(board.tetromino_rotation, new_rotation, board.tetronimo_kind);
+    for (board_entity, action_state, mut board, tilemap) in boards.iter_mut() {
+        let new_rotation = if action_state.just_pressed(&Action::RotateRight) {
+            board.rotation + 1
+        } else if action_state.just_pressed(&Action::RotateLeft) {
+            board.rotation - 1
+        } else {
+            continue;
+        };
+
+        let offsets = get_tetromino_wall_kicks(board.rotation, new_rotation, board.kind);
         for offset in offsets.iter() {
-            let new_pos = board.tetromino_pos + offset;
+            let new_pos = board.pos + offset;
             if board.can_place(board_entity, tilemap, placed_tiles, new_pos, new_rotation) {
-                board.tetromino_pos = new_pos;
-                board.tetromino_rotation = new_rotation;
+                board.pos = new_pos;
+                board.rotation = new_rotation;
                 return;
             }
         }
@@ -337,24 +330,18 @@ fn apply_sub_tile_offset(
     }
 
     for (board_entity, mut board, tilemap) in boards.iter_mut() {
-        board.tetromino_sub_tile_offset.x = board.tetromino_sub_tile_offset.x.clamp(-1.0, 1.0);
-        let total_offset = board.tetromino_sub_tile_offset.floor().as_ivec2();
-        board.tetromino_sub_tile_offset -= total_offset.as_vec2();
+        board.sub_tile_offset.x = board.sub_tile_offset.x.clamp(-1.0, 1.0);
+        let total_offset = board.sub_tile_offset.floor().as_ivec2();
+        board.sub_tile_offset -= total_offset.as_vec2();
 
         for (axis, dir) in [ivec2(1, 0), ivec2(0, 1)].iter().enumerate() {
             for offset in get_range(total_offset[axis]) {
-                let new_pos = board.tetromino_pos + *dir * offset;
-                if !board.can_place(
-                    board_entity,
-                    tilemap,
-                    placed_tiles,
-                    new_pos,
-                    board.tetromino_rotation,
-                ) {
-                    board.tetromino_sub_tile_offset[axis] = 0.0;
+                let new_pos = board.pos + *dir * offset;
+                if !board.can_place(board_entity, tilemap, placed_tiles, new_pos, board.rotation) {
+                    board.sub_tile_offset[axis] = 0.0;
                     break;
                 }
-                board.tetromino_pos[axis] = new_pos[axis];
+                board.pos[axis] = new_pos[axis];
             }
         }
     }
@@ -367,19 +354,13 @@ fn apply_placement(
     asset_server: Res<AssetServer>,
 ) {
     for (board_entity, mut board, tilemap) in boards.iter_mut() {
-        let new_pos = board.tetromino_pos - ivec2(0, 1);
-        if board.can_place(
-            board_entity,
-            tilemap,
-            placed_tiles,
-            new_pos,
-            board.tetromino_rotation,
-        ) {
+        let new_pos = board.pos - ivec2(0, 1);
+        if board.can_place(board_entity, tilemap, placed_tiles, new_pos, board.rotation) {
             return;
         }
 
-        board.tetromino_lock_delay -= 1;
-        if board.tetromino_lock_delay < 0 {
+        board.lock_delay -= 1;
+        if board.lock_delay < 0 {
             board.place(
                 &mut commands,
                 board_entity,

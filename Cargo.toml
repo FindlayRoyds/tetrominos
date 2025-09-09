@@ -7,6 +7,7 @@ edition = "2024"
 bevy = "0.16"
 bevy-inspector-egui = "0.33.1"
 fastrand = "2.3.0"
+leafwing-input-manager = "0.17.1"
 # Set max log levels. This helps avoid unwanted low-severity log spam, which can affect performance.
 log = { version = "0.4", features = [
     "max_level_debug",
