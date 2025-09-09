@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use strum::IntoEnumIterator;
 
 use crate::{
     tetrominoes::{Tetromino, TetrominoKind, TetrominoRotation, get_tetromino_shape},
@@ -156,15 +157,8 @@ fn spawn_next_tetromino(
         }
     }
 
-    let kind = match fastrand::i32(0..7) {
-        0 => TetrominoKind::I,
-        1 => TetrominoKind::J,
-        2 => TetrominoKind::L,
-        3 => TetrominoKind::O,
-        4 => TetrominoKind::S,
-        5 => TetrominoKind::T,
-        _ => TetrominoKind::Z,
-    }; // TODO replace with that one crate idk the name
+    let kind_variants: Vec<TetrominoKind> = TetrominoKind::iter().collect();
+    let kind = kind_variants[fastrand::usize(..kind_variants.len())];
     let pos = ivec2(4, board.size.y as i32 + 1);
     if !board.can_place(board_entity, tiles, kind, 0, pos) {
         bevy::log::error!("Attempted to spawn tetromino at invalid position");
