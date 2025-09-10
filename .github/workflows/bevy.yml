@@ -1,0 +1,102 @@
+name: Deploy to Web
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Shared cache for registry/git/target
+      - name: Cache Cargo registry/git/target
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-shared-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-shared-
+
+      # Cache bevy_cli binary
+      - name: Cache bevy_cli
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/bin/bevy
+          key: ${{ runner.os }}-bin-bevy-cli-v0.1.0-alpha.1
+
+      # Cache wasm-bindgen binary
+      - name: Cache wasm-bindgen-cli
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/wasm-bindgen
+            ~/.cargo/bin/wasm-bindgen-test-runner
+            ~/.cargo/bin/wasm2es6js
+          key: ${{ runner.os }}-bin-wasm-bindgen-v0.2.100
+
+      # Cache wasm-opt binary
+      - name: Cache wasm-opt
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/bin/wasm-opt
+          key: ${{ runner.os }}-bin-wasm-opt-v0.116.1
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install bevy_cli (if missing)
+        run: |
+          if ! command -v bevy >/dev/null; then
+            cargo install --git https://github.com/TheBevyFlock/bevy_cli \
+              --tag cli-v0.1.0-alpha.1 --locked bevy_cli
+          fi
+
+      - name: Install wasm-bindgen-cli (if missing)
+        run: |
+          if ! command -v wasm-bindgen >/dev/null; then
+            cargo install wasm-bindgen-cli --locked --version 0.2.100
+          fi
+
+      - name: Install wasm-opt (if missing)
+        run: |
+          if ! command -v wasm-opt >/dev/null; then
+            cargo install wasm-opt --locked --version 0.116.1
+          fi
+
+      - name: Build
+        run: bevy build --release --yes web --bundle
+
+      - name: Debug build dir
+        run: tree target
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: target/bevy_web/web-release/tetrominoes
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
