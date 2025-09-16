@@ -17,29 +17,8 @@ impl Plugin for TilePlugin {
 #[require(Transform)]
 pub struct Tile {
     pub pos: IVec2,
+    pub offset: Vec2,
     pub tilemap: Entity,
-}
-
-// Todo return entity commands, don't include placed in arguments
-pub fn spawn_tile(
-    commands: &mut Commands,
-    pos: IVec2,
-    tilemap: Entity,
-    placed: bool,
-    asset_server: &Res<AssetServer>,
-) -> Entity {
-    let mut entity_commands = commands.spawn((
-        Name::new("Tile"),
-        Tile { pos, tilemap },
-        ChildOf(tilemap),
-        Sprite::from_image(asset_server.load("tiles/tile.png")),
-    ));
-
-    if placed {
-        entity_commands.insert(crate::board::placed_tile::PlacedTile);
-    }
-
-    entity_commands.id()
 }
 
 #[derive(SystemSet, Clone, Debug, Hash, Eq, PartialEq)]
@@ -48,10 +27,10 @@ pub struct TileVisuals;
 fn update_tile_transforms(mut query: Query<(&Tile, &mut Transform)>, tilemaps: Query<&Tilemap>) {
     for (tile, mut transform) in query.iter_mut() {
         let tilemap = try_unwrap!(tilemaps.get(tile.tilemap), "No tilemap in tile_transforms");
-        transform.translation = ((tile.pos.as_vec2() - tilemap.size.as_vec2() / 2.0
-            + vec2(0.5, 0.5))
-            * tilemap.tile_size.as_vec2())
-        .extend(0.0);
+        transform.translation =
+            ((tile.pos.as_vec2() - tilemap.size.as_vec2() / 2.0 + vec2(0.5, 0.5) + tile.offset)
+                * tilemap.tile_size.as_vec2())
+            .extend(0.0);
     }
 }
 

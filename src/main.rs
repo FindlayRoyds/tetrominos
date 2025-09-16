@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 
 mod board;
 mod input;
@@ -16,7 +15,6 @@ fn main() -> AppExit {
     App::new()
         .insert_resource(ClearColor(Color::srgb(0.0, 0.0, 0.0)))
         .add_plugins((DefaultPlugins.set(ImagePlugin::default_nearest()),))
-        .add_plugins((EguiPlugin::default(), WorldInspectorPlugin::new()))
         .add_plugins((TilePlugin, BoardPlugin, InputPlugin))
         .add_systems(Startup, setup)
         .configure_sets(Update, (BoardUpdates, TileVisuals).chain())
