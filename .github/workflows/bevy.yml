@@ -18,41 +18,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Shared cache for registry/git/target
-      - name: Cache Cargo registry/git/target
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-shared-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-shared-
-
-      # Cache bevy_cli binary
-      - name: Cache bevy_cli
-        uses: actions/cache@v3
-        with:
-          path: ~/.cargo/bin/bevy
-          key: ${{ runner.os }}-bin-bevy-cli-v0.1.0-alpha.1
-
-      # Cache wasm-bindgen binary
-      - name: Cache wasm-bindgen-cli
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/wasm-bindgen
-            ~/.cargo/bin/wasm-bindgen-test-runner
-            ~/.cargo/bin/wasm2es6js
-          key: ${{ runner.os }}-bin-wasm-bindgen-v0.2.100
-
-      # Cache wasm-opt binary
-      - name: Cache wasm-opt
-        uses: actions/cache@v3
-        with:
-          path: ~/.cargo/bin/wasm-opt
-          key: ${{ runner.os }}-bin-wasm-opt-v0.116.1
+  # ...existing code...
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
