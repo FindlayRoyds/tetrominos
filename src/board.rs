@@ -2,7 +2,6 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::ActionState;
 use strum::IntoEnumIterator;
 
-mod line_clear_effect;
 pub mod placed_tile;
 mod tetromino_data;
 
