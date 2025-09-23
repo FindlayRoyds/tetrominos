@@ -18,8 +18,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-  # ...existing code...
-
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -27,29 +25,10 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
 
       - name: Install bevy_cli (if missing)
-        run: |
-          if ! command -v bevy >/dev/null; then
-            cargo install --git https://github.com/TheBevyFlock/bevy_cli \
-              --tag cli-v0.1.0-alpha.1 --locked bevy_cli
-          fi
-
-      - name: Install wasm-bindgen-cli (if missing)
-        run: |
-          if ! command -v wasm-bindgen >/dev/null; then
-            cargo install wasm-bindgen-cli --locked --version 0.2.100
-          fi
-
-      - name: Install wasm-opt (if missing)
-        run: |
-          if ! command -v wasm-opt >/dev/null; then
-            cargo install wasm-opt --locked --version 0.116.1
-          fi
+        run: cargo install --git https://github.com/TheBevyFlock/bevy_cli --tag cli-v0.1.0-alpha.1 --locked bevy_cli
 
       - name: Build
         run: bevy build --release --yes web --bundle
-
-      - name: Debug build dir
-        run: tree target
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
