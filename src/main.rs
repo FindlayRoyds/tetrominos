@@ -23,7 +23,7 @@ fn main() -> AppExit {
 
 fn setup(
     mut commands: Commands,
-    placed_tiles: Query<(Entity, &Tile), With<PlacedTile>>,
+    placed_tiles: Query<&Tile, With<PlacedTile>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
