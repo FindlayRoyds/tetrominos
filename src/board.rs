@@ -210,7 +210,7 @@ fn clear_lines(
             for x in 0..tilemap.size.x as i32 {
                 let tile_entities =
                     tilemap.get_tiles(board_entity, ivec2(x, y).as_vec2(), tile_queries.p0());
-                if tile_entities.len() > 0 {
+                if !tile_entities.is_empty() {
                     for tile_entity in tile_entities {
                         tiles_to_clear.push((tile_entity, ivec2(x, y)));
                     }
