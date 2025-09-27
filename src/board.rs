@@ -2,11 +2,16 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::ActionState;
 use strum::IntoEnumIterator;
 
+mod line_clear;
 pub mod placed_tile;
 mod tetromino_data;
 
 use crate::{
     board::{
+        line_clear::{
+            LineClearTile, apply_line_clear_lifetime, apply_line_clear_skip_update,
+            apply_line_clear_visuals,
+        },
         placed_tile::PlacedTile,
         tetromino_data::{
             TetrominoKind, TetrominoRotation, get_tetromino_shape, get_tetromino_wall_kicks,
@@ -14,7 +19,6 @@ use crate::{
     },
     input::{Action, get_board_input_map},
     tiles::{Tile, Tilemap},
-    try_unwrap,
 };
 
 pub struct BoardPlugin;
@@ -23,7 +27,9 @@ impl Plugin for BoardPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            ((
+            (
+                // Updates
+                move_lines_down,
                 apply_shift,
                 apply_auto_shift,
                 apply_soft_drop,
@@ -34,11 +40,16 @@ impl Plugin for BoardPlugin {
                 apply_collisions,
                 apply_placement,
                 clear_lines,
+                // Other stuff
+                remove_skip_update,
+                apply_line_clear_lifetime,
+                apply_line_clear_visuals,
+                apply_line_clear_skip_update,
                 clear_tetromino_tiles,
                 spawn_tetromino_tiles,
             )
                 .chain()
-                .in_set(BoardUpdates),),
+                .in_set(BoardUpdates),
         );
     }
 }
@@ -182,7 +193,7 @@ pub fn spawn_board(
         .spawn((
             Name::new("Board"),
             Mesh2d(meshes.add(Rectangle::new(rec_size.x, rec_size.y))),
-            MeshMaterial2d(materials.add(Color::WHITE)),
+            MeshMaterial2d(materials.add(Color::BLACK)),
             Transform::from_scale(vec3(4.0, 4.0, 4.0)),
             get_board_input_map(),
         ))
@@ -192,8 +203,7 @@ pub fn spawn_board(
     commands.entity(entity).insert(board).insert(tilemap);
 }
 
-fn clear_lines(
-    mut commands: Commands,
+fn move_lines_down(
     mut boards: Query<(Entity, &Tilemap), (With<Board>, Without<SkipUpdate>)>,
     mut tile_queries: ParamSet<(
         Query<(Entity, &Tile), With<PlacedTile>>,
@@ -202,17 +212,46 @@ fn clear_lines(
 ) {
     for (board_entity, tilemap) in boards.iter_mut() {
         let mut num_cleared_lines = 0;
-
         for y in 0..tilemap.size.y as i32 {
-            let mut clear_line = true;
-            let mut tiles_to_clear: Vec<(Entity, IVec2)> = vec![];
+            let mut tiles_in_line: Vec<Entity> = vec![];
 
             for x in 0..tilemap.size.x as i32 {
                 let tile_entities =
                     tilemap.get_tiles(board_entity, ivec2(x, y).as_vec2(), tile_queries.p0());
+                for tile_entity in tile_entities {
+                    tiles_in_line.push(tile_entity);
+                }
+            }
+
+            for tile_entity in tiles_in_line.iter() {
+                if let Ok((_, mut tile)) = tile_queries.p1().get_mut(*tile_entity) {
+                    tile.pos -= ivec2(0, num_cleared_lines).as_vec2();
+                }
+            }
+            if tiles_in_line.is_empty() {
+                num_cleared_lines += 1;
+            }
+        }
+    }
+}
+
+fn clear_lines(
+    mut commands: Commands,
+    mut boards: Query<(Entity, &Tilemap), (With<Board>, Without<SkipUpdate>)>,
+    placed_tiles: Query<(Entity, &Tile), With<PlacedTile>>,
+    asset_server: Res<AssetServer>,
+) {
+    for (board_entity, tilemap) in boards.iter_mut() {
+        for y in 0..tilemap.size.y as i32 {
+            let mut clear_line = true;
+            let mut tiles_to_clear: Vec<Entity> = vec![];
+
+            for x in 0..tilemap.size.x as i32 {
+                let tile_entities =
+                    tilemap.get_tiles(board_entity, ivec2(x, y).as_vec2(), placed_tiles);
                 if !tile_entities.is_empty() {
                     for tile_entity in tile_entities {
-                        tiles_to_clear.push((tile_entity, ivec2(x, y)));
+                        tiles_to_clear.push(tile_entity);
                     }
                 } else {
                     clear_line = false;
@@ -220,17 +259,24 @@ fn clear_lines(
             }
 
             if clear_line {
-                num_cleared_lines += 1;
-                for (tile_entity, _) in tiles_to_clear {
-                    if let Ok(mut tile_commands) = commands.get_entity(tile_entity) {
-                        tile_commands.despawn();
-                    }
+                for tile_entity in tiles_to_clear {
+                    commands.entity(tile_entity).despawn();
                 }
-            } else if num_cleared_lines > 0 {
-                for (tile_entity, _) in tiles_to_clear {
-                    if let Ok((_, mut tile)) = tile_queries.p1().get_mut(tile_entity) {
-                        tile.pos -= ivec2(0, num_cleared_lines).as_vec2();
-                    }
+
+                for x in 0..tilemap.size.x as i32 {
+                    commands.spawn((
+                        Name::new("LineClearTile"),
+                        Tile {
+                            pos: ivec2(x, y).as_vec2(),
+                            tilemap: board_entity,
+                        },
+                        LineClearTile {
+                            fade_time: 5,
+                            lifetime: 10 + x,
+                        },
+                        ChildOf(board_entity),
+                        Sprite::from_image(asset_server.load("tiles/line_clear.png")),
+                    ));
                 }
             }
         }
@@ -429,12 +475,18 @@ fn apply_placement(
     }
 }
 
+fn remove_skip_update(mut commands: Commands, boards: Query<Entity, With<SkipUpdate>>) {
+    for board_entity in boards {
+        commands.entity(board_entity).remove::<SkipUpdate>();
+    }
+}
+
 fn clear_tetromino_tiles(
     mut commands: Commands,
     tiles: Query<Entity, (With<Tile>, With<TetrominoTile>)>,
 ) {
     for tile_entity in tiles.iter() {
-        try_unwrap!(commands.get_entity(tile_entity), "no entity in clear tiles").despawn();
+        commands.entity(tile_entity).despawn();
     }
 }
 

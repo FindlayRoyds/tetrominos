@@ -13,7 +13,7 @@ use crate::{
 
 fn main() -> AppExit {
     App::new()
-        .insert_resource(ClearColor(Color::srgb(0.0, 0.0, 0.0)))
+        .insert_resource(ClearColor(Color::srgb(0.1, 0.1, 0.1)))
         .add_plugins((DefaultPlugins.set(ImagePlugin::default_nearest()),))
         .add_plugins((TilePlugin, BoardPlugin, InputPlugin))
         .add_systems(Startup, setup)
