@@ -81,7 +81,7 @@ impl Default for Board {
             movement: vec2(0.0, 0.0),
             rotation: 0,
             lock_delay: 80,
-            auto_shift_delay: 10,
+            auto_shift_delay: 8,
         }
     }
 }
@@ -160,8 +160,6 @@ impl Board {
                     Sprite::from_image(asset_server.load("tiles/tile.png")),
                 ));
             }
-        } else {
-            bevy::log::error!("Failed to place tetromino at {:?}", self.pos);
         }
         self.spawn_next(self_entity, tilemap, placed_tiles);
     }
@@ -339,20 +337,22 @@ fn apply_hard_drop(
 ) {
     for (board_entity, action_state, mut board, tilemap) in boards.iter_mut() {
         if action_state.just_pressed(&Action::HardDrop) {
-            for y_pos in 0..=board.get_snapped_pos().y {
+            for y_pos in (0..board.get_snapped_pos().y).rev() {
                 let new_pos = ivec2(board.get_snapped_pos().x, y_pos);
                 if board.can_place(board_entity, tilemap, placed_tiles, new_pos, board.rotation) {
                     board.pos = new_pos.as_vec2();
-                    board.place(
-                        &mut commands,
-                        board_entity,
-                        tilemap,
-                        placed_tiles,
-                        &asset_server,
-                    );
+                } else {
                     break;
                 }
             }
+
+            board.place(
+                &mut commands,
+                board_entity,
+                tilemap,
+                placed_tiles,
+                &asset_server,
+            );
         }
     }
 }
