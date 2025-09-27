@@ -95,7 +95,7 @@ impl Board {
     ) {
         let kind_variants: Vec<TetrominoKind> = TetrominoKind::iter().collect();
         self.kind = kind_variants[fastrand::usize(..kind_variants.len())];
-        self.pos = vec2(4.0, tilemap.size.y as f32 - 1.0);
+        self.pos = vec2(4.0, tilemap.size.y as f32 - 0.4);
         self.rotation = 0;
         self.lock_delay = 80;
         if !self.can_place(
