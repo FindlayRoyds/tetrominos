@@ -2,8 +2,11 @@ use bevy::prelude::*;
 
 use crate::{
     board::{
-        Board, board_config::BoardConfig, outline::TetrominoTileOutline, placed_tile::PlacedTile,
-        tetromino_data::get_tetromino_shape,
+        Board,
+        board_config::BoardConfig,
+        outline::TetrominoTileOutline,
+        placed_tile::PlacedTile,
+        tetromino_data::{get_tetromino_color, get_tetromino_shape},
     },
     tiles::Tile,
     try_unwrap,
@@ -46,6 +49,7 @@ pub fn spawn_tetromino_tiles(
         .enumerate()
     {
         let pos = (board.get_snapped_pos() + offset).as_vec2();
+        let color_str = get_tetromino_color(board.kind);
         commands.spawn((
             Name::new("TetrominoTile"),
             Tile {
@@ -56,7 +60,7 @@ pub fn spawn_tetromino_tiles(
                 offset_index: index,
             },
             ChildOf(board_entity),
-            Sprite::from_image(asset_server.load("tiles/tile.png")),
+            Sprite::from_image(asset_server.load(format!("tiles/tile_{}.png", color_str))),
         ));
         commands.spawn((
             Name::new("TetrominoTileOutline"),
@@ -69,7 +73,7 @@ pub fn spawn_tetromino_tiles(
             },
             TetrominoTileOutline,
             ChildOf(board_entity),
-            Sprite::from_image(asset_server.load("tiles/outline.png")),
+            Sprite::from_image(asset_server.load(format!("tiles/outline_{}.png", color_str))),
             Transform::from_translation(Vec3::new(0.0, 0.0, 2.0)),
         ));
     }

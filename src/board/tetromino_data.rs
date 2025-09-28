@@ -97,3 +97,15 @@ pub fn get_tetromino_wall_kicks(
         .map(|(o, n)| o - n)
         .collect()
 }
+
+pub const fn get_tetromino_color(kind: TetrominoKind) -> &'static str {
+    match kind {
+        TetrominoKind::I => "blue",
+        TetrominoKind::J => "pink",
+        TetrominoKind::L => "orange",
+        TetrominoKind::O => "yellow",
+        TetrominoKind::S => "red",
+        TetrominoKind::T => "purple",
+        TetrominoKind::Z => "green",
+    }
+}

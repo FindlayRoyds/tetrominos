@@ -15,7 +15,8 @@ use crate::{
         line_clear::{LineClearPlugin, LineClearVisuals, clear_lines},
         placed_tile::PlacedTile,
         tetromino_data::{
-            TetrominoKind, TetrominoRotation, get_tetromino_shape, get_tetromino_wall_kicks,
+            TetrominoKind, TetrominoRotation, get_tetromino_color, get_tetromino_shape,
+            get_tetromino_wall_kicks,
         },
         tetromino_tile::{
             TetrominoTile, TetrominoTilePlugin, TetrominoTileVisuals, clear_tetromino_tiles,
@@ -158,6 +159,7 @@ impl Board {
         ) {
             for offset in get_tetromino_shape(self.kind, self.rotation) {
                 let pos = self.get_snapped_pos() + offset;
+                let color_str = get_tetromino_color(self.kind);
                 commands.spawn((
                     Name::new("PlacedTile"),
                     Tile {
@@ -166,7 +168,7 @@ impl Board {
                     },
                     PlacedTile,
                     ChildOf(self_entity),
-                    Sprite::from_image(asset_server.load("tiles/tile.png")),
+                    Sprite::from_image(asset_server.load(format!("tiles/tile_{}.png", color_str))),
                 ));
             }
         }
