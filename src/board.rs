@@ -7,60 +7,58 @@ mod line_clear;
 mod outline;
 pub mod placed_tile;
 mod tetromino_data;
+mod tetromino_tile;
 
 use crate::{
     board::{
         board_config::BoardConfig,
-        line_clear::{
-            LineClearTile, apply_line_clear_lifetime, apply_line_clear_skip_update,
-            apply_line_clear_visuals,
-        },
-        outline::TetrominoTileOutline,
+        line_clear::{LineClearPlugin, LineClearVisuals, clear_lines},
         placed_tile::PlacedTile,
         tetromino_data::{
             TetrominoKind, TetrominoRotation, get_tetromino_shape, get_tetromino_wall_kicks,
         },
+        tetromino_tile::{
+            TetrominoTile, TetrominoTilePlugin, TetrominoTileVisuals, clear_tetromino_tiles,
+            spawn_tetromino_tiles,
+        },
     },
     input::{Action, get_board_input_map},
     tiles::{Tile, Tilemap},
-    try_unwrap,
 };
 
 pub struct BoardPlugin;
 
 impl Plugin for BoardPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            FixedUpdate,
-            (
-                // Updates
-                move_lines_down,
-                apply_shift,
-                apply_auto_shift,
-                apply_soft_drop,
-                apply_hard_drop,
-                apply_gravity,
-                apply_rotation,
-                apply_movement,
-                apply_collisions,
-                apply_placement,
-                clear_lines,
-                remove_skip_update,
-                // Visuals
-                apply_line_clear_lifetime,
-                apply_line_clear_skip_update,
-                apply_line_clear_visuals,
-                clear_tetromino_tiles,
-                spawn_tetromino_tiles,
-                apply_lock_delay_visuals,
+        app.add_plugins((LineClearPlugin, TetrominoTilePlugin))
+            .add_systems(
+                FixedUpdate,
+                (
+                    move_lines_down,
+                    apply_shift,
+                    apply_auto_shift,
+                    apply_soft_drop,
+                    apply_hard_drop,
+                    apply_gravity,
+                    apply_rotation,
+                    apply_movement,
+                    apply_collisions,
+                    apply_placement,
+                    clear_lines,
+                    remove_skip_update,
+                )
+                    .chain()
+                    .in_set(BoardUpdates),
             )
-                .chain(), // .in_set(BoardUpdates),
-        );
+            .configure_sets(
+                FixedUpdate,
+                (BoardUpdates, LineClearVisuals, TetrominoTileVisuals).chain(),
+            );
     }
 }
 
-#[derive(Component)]
-pub struct TetrominoTile;
+#[derive(SystemSet, Hash, Debug, Clone, Copy, PartialEq, Eq)]
+struct BoardUpdates;
 
 #[derive(Component)]
 pub struct SkipUpdate;
@@ -93,23 +91,27 @@ impl Default for Board {
 impl Board {
     pub fn spawn_next(
         &mut self,
+        commands: &mut Commands,
         self_entity: Entity,
         tilemap: &Tilemap,
         board_config: &BoardConfig,
         placed_tiles: Query<&Tile, With<PlacedTile>>,
+        asset_server: &Res<AssetServer>,
     ) {
         let kind_variants: Vec<TetrominoKind> = TetrominoKind::iter().collect();
         self.kind = kind_variants[fastrand::usize(..kind_variants.len())];
         self.pos = vec2(4.0, tilemap.size.y as f32 - 0.4);
         self.rotation = 0;
         self.lock_delay = board_config.lock_delay;
-        if !self.can_place(
+        if self.can_place(
             self_entity,
             tilemap,
             placed_tiles,
             self.get_snapped_pos(),
             self.rotation,
         ) {
+            spawn_tetromino_tiles(commands, self, self_entity, asset_server);
+        } else {
             bevy::log::error!("Attempted to spawn tetromino at invalid position");
         }
     }
@@ -144,6 +146,7 @@ impl Board {
         board_config: &BoardConfig,
         tilemap: &Tilemap,
         placed_tiles: Query<&Tile, With<PlacedTile>>,
+        tetromino_tiles: Query<(Entity, &Tile), (With<TetrominoTile>, Without<PlacedTile>)>,
         asset_server: &Res<AssetServer>,
     ) {
         if self.can_place(
@@ -167,7 +170,15 @@ impl Board {
                 ));
             }
         }
-        self.spawn_next(self_entity, tilemap, board_config, placed_tiles);
+        clear_tetromino_tiles(commands, self_entity, tetromino_tiles);
+        self.spawn_next(
+            commands,
+            self_entity,
+            tilemap,
+            board_config,
+            placed_tiles,
+            asset_server,
+        );
     }
 
     fn get_snapped_pos(&self) -> IVec2 {
@@ -188,6 +199,7 @@ pub fn spawn_board(
     tile_size: UVec2,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
     let rec_size = (size * tile_size).as_vec2();
     let tilemap = Tilemap { size, tile_size };
@@ -204,7 +216,14 @@ pub fn spawn_board(
         ))
         .id();
 
-    board.spawn_next(entity, &tilemap, &board_config, placed_tiles);
+    board.spawn_next(
+        commands,
+        entity,
+        &tilemap,
+        &board_config,
+        placed_tiles,
+        &asset_server,
+    );
     commands
         .entity(entity)
         .insert((board, board_config, tilemap));
@@ -237,55 +256,6 @@ fn move_lines_down(
             }
             if tiles_in_line.is_empty() {
                 num_cleared_lines += 1;
-            }
-        }
-    }
-}
-
-fn clear_lines(
-    mut commands: Commands,
-    mut boards: Query<(Entity, &Tilemap, &BoardConfig), (With<Board>, Without<SkipUpdate>)>,
-    placed_tiles: Query<(Entity, &Tile), With<PlacedTile>>,
-    asset_server: Res<AssetServer>,
-) {
-    for (board_entity, tilemap, board_config) in boards.iter_mut() {
-        for y in 0..tilemap.size.y as i32 {
-            let mut clear_line = true;
-            let mut tiles_to_clear: Vec<Entity> = vec![];
-
-            for x in 0..tilemap.size.x as i32 {
-                let tile_entities =
-                    tilemap.get_tiles(board_entity, ivec2(x, y).as_vec2(), placed_tiles);
-                if !tile_entities.is_empty() {
-                    for tile_entity in tile_entities {
-                        tiles_to_clear.push(tile_entity);
-                    }
-                } else {
-                    clear_line = false;
-                }
-            }
-
-            if clear_line {
-                for tile_entity in tiles_to_clear {
-                    commands.entity(tile_entity).despawn();
-                }
-
-                for x in 0..tilemap.size.x as i32 {
-                    commands.spawn((
-                        Name::new("LineClearTile"),
-                        Tile {
-                            pos: ivec2(x, y).as_vec2(),
-                            tilemap: board_entity,
-                        },
-                        LineClearTile {
-                            fade_time: board_config.line_clear_fade_time,
-                            lifetime: board_config.line_clear_delay
-                                + board_config.line_clear_horizontal_delay * x,
-                        },
-                        ChildOf(board_entity),
-                        Sprite::from_image(asset_server.load("tiles/line_clear.png")),
-                    ));
-                }
             }
         }
     }
@@ -353,6 +323,7 @@ fn apply_hard_drop(
         Without<SkipUpdate>,
     >,
     placed_tiles: Query<&Tile, With<PlacedTile>>,
+    tetromino_tiles: Query<(Entity, &Tile), (With<TetrominoTile>, Without<PlacedTile>)>,
     asset_server: Res<AssetServer>,
 ) {
     for (board_entity, action_state, mut board, board_config, tilemap) in boards.iter_mut() {
@@ -372,6 +343,7 @@ fn apply_hard_drop(
                 board_config,
                 tilemap,
                 placed_tiles,
+                tetromino_tiles,
                 &asset_server,
             );
         }
@@ -478,6 +450,7 @@ fn apply_placement(
         Without<SkipUpdate>,
     >,
     placed_tiles: Query<&Tile, With<PlacedTile>>,
+    tetromino_tiles: Query<(Entity, &Tile), (With<TetrominoTile>, Without<PlacedTile>)>,
     asset_server: Res<AssetServer>,
 ) {
     for (board_entity, mut board, board_config, tilemap, action_state) in boards.iter_mut() {
@@ -508,6 +481,7 @@ fn apply_placement(
                 board_config,
                 tilemap,
                 placed_tiles,
+                tetromino_tiles,
                 &asset_server,
             );
         }
@@ -517,66 +491,5 @@ fn apply_placement(
 fn remove_skip_update(mut commands: Commands, boards: Query<Entity, With<SkipUpdate>>) {
     for board_entity in boards {
         commands.entity(board_entity).remove::<SkipUpdate>();
-    }
-}
-
-fn clear_tetromino_tiles(
-    mut commands: Commands,
-    tiles: Query<Entity, (With<Tile>, With<TetrominoTile>)>,
-) {
-    for tile_entity in tiles {
-        commands.entity(tile_entity).despawn();
-    }
-}
-
-fn spawn_tetromino_tiles(
-    mut commands: Commands,
-    boards: Query<(Entity, &Board)>,
-    asset_server: Res<AssetServer>,
-) {
-    for (board_entity, board) in boards {
-        for offset in get_tetromino_shape(board.kind, board.rotation) {
-            let pos = (board.get_snapped_pos() + offset).as_vec2();
-            commands.spawn((
-                Name::new("TetrominoTile"),
-                Tile {
-                    pos,
-                    tilemap: board_entity,
-                },
-                TetrominoTile,
-                ChildOf(board_entity),
-                Sprite::from_image(asset_server.load("tiles/tile.png")),
-            ));
-            commands.spawn((
-                Name::new("TetrominoTileOutline"),
-                Tile {
-                    pos,
-                    tilemap: board_entity,
-                },
-                TetrominoTile,
-                TetrominoTileOutline,
-                ChildOf(board_entity),
-                Sprite::from_image(asset_server.load("tiles/outline.png")),
-                Transform::from_translation(Vec3::new(0.0, 0.0, 2.0)),
-            ));
-        }
-    }
-}
-
-fn apply_lock_delay_visuals(
-    mut tiles: Query<(&Tile, &mut Sprite), (With<TetrominoTile>, Without<TetrominoTileOutline>)>,
-    boards: Query<(&Board, &BoardConfig)>,
-) {
-    for (tile, mut sprite) in tiles.iter_mut() {
-        let (board, board_config) = try_unwrap!(
-            boards.get(tile.tilemap),
-            "Failed to get board in ld visuals"
-        );
-
-        let normal_effect =
-            board.stationary_lock_delay as f32 / board_config.stationary_lock_delay as f32;
-        let stationary_effect = board.lock_delay as f32 / board_config.lock_delay as f32;
-
-        sprite.color.set_alpha(normal_effect.min(stationary_effect));
     }
 }

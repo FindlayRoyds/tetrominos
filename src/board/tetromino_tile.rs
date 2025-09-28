@@ -1,0 +1,123 @@
+use bevy::prelude::*;
+
+use crate::{
+    board::{
+        Board, board_config::BoardConfig, outline::TetrominoTileOutline, placed_tile::PlacedTile,
+        tetromino_data::get_tetromino_shape,
+    },
+    tiles::Tile,
+    try_unwrap,
+};
+
+pub struct TetrominoTilePlugin;
+
+impl Plugin for TetrominoTilePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            FixedUpdate,
+            (
+                // clear_tetromino_tiles,
+                // spawn_tetromino_tiles,
+                update_tetromino_tile_positions,
+                apply_lock_delay_visuals,
+            )
+                .chain()
+                .in_set(TetrominoTileVisuals),
+        );
+    }
+}
+
+#[derive(SystemSet, Hash, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TetrominoTileVisuals;
+
+#[derive(Component)]
+pub struct TetrominoTile {
+    offset_index: usize,
+}
+
+pub fn spawn_tetromino_tiles(
+    commands: &mut Commands,
+    board: &Board,
+    board_entity: Entity,
+    asset_server: &Res<AssetServer>,
+) {
+    for (index, offset) in get_tetromino_shape(board.kind, board.rotation)
+        .iter()
+        .enumerate()
+    {
+        let pos = (board.get_snapped_pos() + offset).as_vec2();
+        commands.spawn((
+            Name::new("TetrominoTile"),
+            Tile {
+                pos,
+                tilemap: board_entity,
+            },
+            TetrominoTile {
+                offset_index: index,
+            },
+            ChildOf(board_entity),
+            Sprite::from_image(asset_server.load("tiles/tile.png")),
+        ));
+        commands.spawn((
+            Name::new("TetrominoTileOutline"),
+            Tile {
+                pos,
+                tilemap: board_entity,
+            },
+            TetrominoTile {
+                offset_index: index,
+            },
+            TetrominoTileOutline,
+            ChildOf(board_entity),
+            Sprite::from_image(asset_server.load("tiles/outline.png")),
+            Transform::from_translation(Vec3::new(0.0, 0.0, 2.0)),
+        ));
+    }
+}
+
+pub fn clear_tetromino_tiles(
+    commands: &mut Commands,
+    board_entity: Entity,
+    tiles: Query<(Entity, &Tile), (With<TetrominoTile>, Without<PlacedTile>)>,
+) {
+    for (tile_entity, tile) in tiles {
+        if tile.tilemap != board_entity {
+            continue;
+        }
+
+        commands.entity(tile_entity).despawn()
+    }
+}
+
+fn update_tetromino_tile_positions(
+    mut tiles: Query<(&mut Tile, &TetrominoTile)>,
+    boards: Query<&Board>,
+) {
+    for (mut tile, tetromino_tile) in tiles.iter_mut() {
+        let Ok(board) = boards.get(tile.tilemap) else {
+            bevy::log::warn_once!("Failed to get board in update tetromino tile positions");
+            continue;
+        };
+
+        let offsets = get_tetromino_shape(board.kind, board.rotation);
+        tile.pos = (board.get_snapped_pos() + offsets[tetromino_tile.offset_index]).as_vec2();
+    }
+}
+
+fn apply_lock_delay_visuals(
+    mut tiles: Query<(&Tile, &mut Sprite), (With<TetrominoTile>, Without<TetrominoTileOutline>)>,
+    boards: Query<(&Board, &BoardConfig)>,
+) {
+    for (tile, mut sprite) in tiles.iter_mut() {
+        let (board, board_config) = try_unwrap!(
+            boards.get(tile.tilemap),
+            "Failed to get board in ld visuals"
+        );
+
+        let normal_effect =
+            board.stationary_lock_delay as f32 / board_config.stationary_lock_delay as f32;
+        let stationary_effect = board.lock_delay as f32 / board_config.lock_delay as f32;
+
+        sprite.color.set_alpha(normal_effect.min(stationary_effect));
+    }
+}

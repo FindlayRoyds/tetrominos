@@ -26,6 +26,7 @@ fn setup(
     placed_tiles: Query<&Tile, With<PlacedTile>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
     commands.spawn(Camera2d);
 
@@ -36,5 +37,6 @@ fn setup(
         uvec2(8, 8),
         &mut meshes,
         &mut materials,
+        asset_server,
     );
 }
