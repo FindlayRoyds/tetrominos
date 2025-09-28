@@ -6,9 +6,9 @@ mod tiles;
 mod warnings;
 
 use crate::{
-    board::{BoardPlugin, BoardUpdates, placed_tile::PlacedTile, spawn_board},
+    board::{BoardPlugin, placed_tile::PlacedTile, spawn_board},
     input::InputPlugin,
-    tiles::{Tile, TilePlugin, TileVisuals},
+    tiles::{Tile, TilePlugin},
 };
 
 fn main() -> AppExit {
@@ -17,7 +17,7 @@ fn main() -> AppExit {
         .add_plugins((DefaultPlugins.set(ImagePlugin::default_nearest()),))
         .add_plugins((TilePlugin, BoardPlugin, InputPlugin))
         .add_systems(Startup, setup)
-        .configure_sets(Update, (BoardUpdates, TileVisuals).chain())
+        .insert_resource(Time::<Fixed>::from_hz(60.0))
         .run()
 }
 

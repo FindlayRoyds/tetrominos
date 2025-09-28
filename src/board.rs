@@ -31,7 +31,7 @@ pub struct BoardPlugin;
 impl Plugin for BoardPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
-            Update,
+            FixedUpdate,
             (
                 // Updates
                 move_lines_down,
@@ -54,14 +54,10 @@ impl Plugin for BoardPlugin {
                 spawn_tetromino_tiles,
                 apply_lock_delay_visuals,
             )
-                .chain()
-                .in_set(BoardUpdates),
+                .chain(), // .in_set(BoardUpdates),
         );
     }
 }
-
-#[derive(SystemSet, Debug, Clone, Hash, Eq, PartialEq)]
-pub struct BoardUpdates;
 
 #[derive(Component)]
 pub struct TetrominoTile;
@@ -568,7 +564,7 @@ fn spawn_tetromino_tiles(
 }
 
 fn apply_lock_delay_visuals(
-    mut tiles: Query<(&Tile, &mut Sprite), (With<TetrominoTileOutline>, With<Name>)>,
+    mut tiles: Query<(&Tile, &mut Sprite), (With<TetrominoTile>, Without<TetrominoTileOutline>)>,
     boards: Query<(&Board, &BoardConfig)>,
 ) {
     for (tile, mut sprite) in tiles.iter_mut() {

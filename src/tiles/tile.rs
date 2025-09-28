@@ -6,10 +6,7 @@ pub struct TilePlugin;
 
 impl Plugin for TilePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            Update,
-            (update_tile_transforms, update_tile_visibility).in_set(TileVisuals),
-        );
+        app.add_systems(Update, (update_tile_transforms, update_tile_visibility));
     }
 }
 
@@ -19,9 +16,6 @@ pub struct Tile {
     pub pos: Vec2,
     pub tilemap: Entity,
 }
-
-#[derive(SystemSet, Clone, Debug, Hash, Eq, PartialEq)]
-pub struct TileVisuals;
 
 fn update_tile_transforms(mut query: Query<(&Tile, &mut Transform)>, tilemaps: Query<&Tilemap>) {
     for (tile, mut transform) in query.iter_mut() {
