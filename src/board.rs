@@ -2,16 +2,20 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::ActionState;
 use strum::IntoEnumIterator;
 
+mod board_config;
 mod line_clear;
+mod outline;
 pub mod placed_tile;
 mod tetromino_data;
 
 use crate::{
     board::{
+        board_config::BoardConfig,
         line_clear::{
             LineClearTile, apply_line_clear_lifetime, apply_line_clear_skip_update,
             apply_line_clear_visuals,
         },
+        outline::TetrominoTileOutline,
         placed_tile::PlacedTile,
         tetromino_data::{
             TetrominoKind, TetrominoRotation, get_tetromino_shape, get_tetromino_wall_kicks,
@@ -19,6 +23,7 @@ use crate::{
     },
     input::{Action, get_board_input_map},
     tiles::{Tile, Tilemap},
+    try_unwrap,
 };
 
 pub struct BoardPlugin;
@@ -40,13 +45,14 @@ impl Plugin for BoardPlugin {
                 apply_collisions,
                 apply_placement,
                 clear_lines,
-                // Other stuff
                 remove_skip_update,
+                // Visuals
                 apply_line_clear_lifetime,
-                apply_line_clear_visuals,
                 apply_line_clear_skip_update,
+                apply_line_clear_visuals,
                 clear_tetromino_tiles,
                 spawn_tetromino_tiles,
+                apply_lock_delay_visuals,
             )
                 .chain()
                 .in_set(BoardUpdates),
@@ -69,6 +75,7 @@ pub struct Board {
     pos: Vec2,
     movement: Vec2,
     rotation: TetrominoRotation,
+    stationary_lock_delay: i32,
     lock_delay: i32,
     auto_shift_delay: i32,
 }
@@ -76,12 +83,13 @@ pub struct Board {
 impl Default for Board {
     fn default() -> Self {
         Self {
-            kind: TetrominoKind::L,
-            pos: vec2(0.0, 0.0),
-            movement: vec2(0.0, 0.0),
-            rotation: 0,
-            lock_delay: 80,
-            auto_shift_delay: 8,
+            kind: TetrominoKind::I,
+            pos: Default::default(),
+            movement: Default::default(),
+            rotation: Default::default(),
+            stationary_lock_delay: Default::default(),
+            lock_delay: Default::default(),
+            auto_shift_delay: Default::default(),
         }
     }
 }
@@ -91,13 +99,14 @@ impl Board {
         &mut self,
         self_entity: Entity,
         tilemap: &Tilemap,
+        board_config: &BoardConfig,
         placed_tiles: Query<&Tile, With<PlacedTile>>,
     ) {
         let kind_variants: Vec<TetrominoKind> = TetrominoKind::iter().collect();
         self.kind = kind_variants[fastrand::usize(..kind_variants.len())];
         self.pos = vec2(4.0, tilemap.size.y as f32 - 0.4);
         self.rotation = 0;
-        self.lock_delay = 80;
+        self.lock_delay = board_config.lock_delay;
         if !self.can_place(
             self_entity,
             tilemap,
@@ -136,6 +145,7 @@ impl Board {
         &mut self,
         commands: &mut Commands,
         self_entity: Entity,
+        board_config: &BoardConfig,
         tilemap: &Tilemap,
         placed_tiles: Query<&Tile, With<PlacedTile>>,
         asset_server: &Res<AssetServer>,
@@ -161,7 +171,7 @@ impl Board {
                 ));
             }
         }
-        self.spawn_next(self_entity, tilemap, placed_tiles);
+        self.spawn_next(self_entity, tilemap, board_config, placed_tiles);
     }
 
     fn get_snapped_pos(&self) -> IVec2 {
@@ -185,6 +195,7 @@ pub fn spawn_board(
 ) {
     let rec_size = (size * tile_size).as_vec2();
     let tilemap = Tilemap { size, tile_size };
+    let board_config = BoardConfig::default();
     let mut board = Board::default();
 
     let entity = commands
@@ -197,8 +208,10 @@ pub fn spawn_board(
         ))
         .id();
 
-    board.spawn_next(entity, &tilemap, placed_tiles);
-    commands.entity(entity).insert(board).insert(tilemap);
+    board.spawn_next(entity, &tilemap, &board_config, placed_tiles);
+    commands
+        .entity(entity)
+        .insert((board, board_config, tilemap));
 }
 
 fn move_lines_down(
@@ -235,11 +248,11 @@ fn move_lines_down(
 
 fn clear_lines(
     mut commands: Commands,
-    mut boards: Query<(Entity, &Tilemap), (With<Board>, Without<SkipUpdate>)>,
+    mut boards: Query<(Entity, &Tilemap, &BoardConfig), (With<Board>, Without<SkipUpdate>)>,
     placed_tiles: Query<(Entity, &Tile), With<PlacedTile>>,
     asset_server: Res<AssetServer>,
 ) {
-    for (board_entity, tilemap) in boards.iter_mut() {
+    for (board_entity, tilemap, board_config) in boards.iter_mut() {
         for y in 0..tilemap.size.y as i32 {
             let mut clear_line = true;
             let mut tiles_to_clear: Vec<Entity> = vec![];
@@ -269,8 +282,9 @@ fn clear_lines(
                             tilemap: board_entity,
                         },
                         LineClearTile {
-                            fade_time: 5,
-                            lifetime: 10 + x,
+                            fade_time: board_config.line_clear_fade_time,
+                            lifetime: board_config.line_clear_delay
+                                + board_config.line_clear_horizontal_delay * x,
                         },
                         ChildOf(board_entity),
                         Sprite::from_image(asset_server.load("tiles/line_clear.png")),
@@ -297,8 +311,10 @@ fn apply_shift(mut boards: Query<(&ActionState<Action>, &mut Board), Without<Ski
     }
 }
 
-fn apply_auto_shift(mut boards: Query<(&ActionState<Action>, &mut Board), Without<SkipUpdate>>) {
-    for (action_state, mut board) in boards.iter_mut() {
+fn apply_auto_shift(
+    mut boards: Query<(&ActionState<Action>, &mut Board, &BoardConfig), Without<SkipUpdate>>,
+) {
+    for (action_state, mut board, board_config) in boards.iter_mut() {
         let shift = if action_state.pressed(&Action::ShiftLeft) {
             -1
         } else if action_state.pressed(&Action::ShiftRight) {
@@ -308,34 +324,42 @@ fn apply_auto_shift(mut boards: Query<(&ActionState<Action>, &mut Board), Withou
         };
 
         if shift == 0 {
-            board.auto_shift_delay = 10;
+            board.auto_shift_delay = board_config.auto_shift_delay;
             board.pos.x = board.get_snapped_pos().x as f32;
-            continue;
-        }
-        if board.auto_shift_delay > 0 {
+        } else if board.auto_shift_delay > 0 {
             board.auto_shift_delay -= 1;
-            continue;
+        } else {
+            board.movement.x += board_config.auto_shift_speed * shift as f32;
         }
-
-        board.movement.x += 0.25 * shift as f32;
     }
 }
 
-fn apply_soft_drop(mut boards: Query<(&ActionState<Action>, &mut Board), Without<SkipUpdate>>) {
-    for (action_state, mut board) in boards.iter_mut() {
+fn apply_soft_drop(
+    mut boards: Query<(&ActionState<Action>, &mut Board, &BoardConfig), Without<SkipUpdate>>,
+) {
+    for (action_state, mut board, board_config) in boards.iter_mut() {
         if action_state.pressed(&Action::SoftDrop) {
-            board.movement.y -= 0.25;
+            board.movement.y -= board_config.soft_drop_speed;
         }
     }
 }
 
 fn apply_hard_drop(
     mut commands: Commands,
-    mut boards: Query<(Entity, &ActionState<Action>, &mut Board, &Tilemap), Without<SkipUpdate>>,
+    mut boards: Query<
+        (
+            Entity,
+            &ActionState<Action>,
+            &mut Board,
+            &BoardConfig,
+            &Tilemap,
+        ),
+        Without<SkipUpdate>,
+    >,
     placed_tiles: Query<&Tile, With<PlacedTile>>,
     asset_server: Res<AssetServer>,
 ) {
-    for (board_entity, action_state, mut board, tilemap) in boards.iter_mut() {
+    for (board_entity, action_state, mut board, board_config, tilemap) in boards.iter_mut() {
         if action_state.just_pressed(&Action::HardDrop) {
             for y_pos in (0..board.get_snapped_pos().y).rev() {
                 let new_pos = ivec2(board.get_snapped_pos().x, y_pos);
@@ -349,6 +373,7 @@ fn apply_hard_drop(
             board.place(
                 &mut commands,
                 board_entity,
+                board_config,
                 tilemap,
                 placed_tiles,
                 &asset_server,
@@ -446,11 +471,20 @@ fn apply_collisions(
 
 fn apply_placement(
     mut commands: Commands,
-    mut boards: Query<(Entity, &mut Board, &Tilemap), Without<SkipUpdate>>,
+    mut boards: Query<
+        (
+            Entity,
+            &mut Board,
+            &BoardConfig,
+            &Tilemap,
+            &ActionState<Action>,
+        ),
+        Without<SkipUpdate>,
+    >,
     placed_tiles: Query<&Tile, With<PlacedTile>>,
     asset_server: Res<AssetServer>,
 ) {
-    for (board_entity, mut board, tilemap) in boards.iter_mut() {
+    for (board_entity, mut board, board_config, tilemap, action_state) in boards.iter_mut() {
         let pos_below = board.get_snapped_pos() - ivec2(0, 1);
         if board.can_place(
             board_entity,
@@ -458,15 +492,24 @@ fn apply_placement(
             placed_tiles,
             pos_below,
             board.rotation,
-        ) {
-            return; // Piece can still move down
+        ) || board.pos.y % 1.0 != 0.0
+        {
+            board.stationary_lock_delay = board_config.stationary_lock_delay;
+            continue; // Piece can still move down
         }
 
         board.lock_delay -= 1;
-        if board.lock_delay < 0 {
+        if action_state.pressed(&Action::ShiftLeft) || action_state.pressed(&Action::ShiftRight) {
+            board.stationary_lock_delay = board_config.stationary_lock_delay;
+        } else {
+            board.stationary_lock_delay -= 1;
+        }
+
+        if board.lock_delay < 0 || board.stationary_lock_delay < 0 {
             board.place(
                 &mut commands,
                 board_entity,
+                board_config,
                 tilemap,
                 placed_tiles,
                 &asset_server,
@@ -485,7 +528,7 @@ fn clear_tetromino_tiles(
     mut commands: Commands,
     tiles: Query<Entity, (With<Tile>, With<TetrominoTile>)>,
 ) {
-    for tile_entity in tiles.iter() {
+    for tile_entity in tiles {
         commands.entity(tile_entity).despawn();
     }
 }
@@ -495,10 +538,9 @@ fn spawn_tetromino_tiles(
     boards: Query<(Entity, &Board)>,
     asset_server: Res<AssetServer>,
 ) {
-    for (board_entity, board) in boards.iter() {
+    for (board_entity, board) in boards {
         for offset in get_tetromino_shape(board.kind, board.rotation) {
             let pos = (board.get_snapped_pos() + offset).as_vec2();
-            // let pos = board.pos + offset.as_vec2();
             commands.spawn((
                 Name::new("TetrominoTile"),
                 Tile {
@@ -509,16 +551,36 @@ fn spawn_tetromino_tiles(
                 ChildOf(board_entity),
                 Sprite::from_image(asset_server.load("tiles/tile.png")),
             ));
-            // commands.spawn((
-            //     Name::new("TetrominoTile"),
-            //     Tile {
-            //         pos: board.pos + offset.as_vec2(),
-            //         tilemap: board_entity,
-            //     },
-            //     TetrominoTile,
-            //     ChildOf(board_entity),
-            //     Sprite::from_image(asset_server.load("tiles/line_clear.png")),
-            // ));
+            commands.spawn((
+                Name::new("TetrominoTileOutline"),
+                Tile {
+                    pos,
+                    tilemap: board_entity,
+                },
+                TetrominoTile,
+                TetrominoTileOutline,
+                ChildOf(board_entity),
+                Sprite::from_image(asset_server.load("tiles/outline.png")),
+                Transform::from_translation(Vec3::new(0.0, 0.0, 2.0)),
+            ));
         }
+    }
+}
+
+fn apply_lock_delay_visuals(
+    mut tiles: Query<(&Tile, &mut Sprite), (With<TetrominoTileOutline>, With<Name>)>,
+    boards: Query<(&Board, &BoardConfig)>,
+) {
+    for (tile, mut sprite) in tiles.iter_mut() {
+        let (board, board_config) = try_unwrap!(
+            boards.get(tile.tilemap),
+            "Failed to get board in ld visuals"
+        );
+
+        let normal_effect =
+            board.stationary_lock_delay as f32 / board_config.stationary_lock_delay as f32;
+        let stationary_effect = board.lock_delay as f32 / board_config.lock_delay as f32;
+
+        sprite.color.set_alpha(normal_effect.min(stationary_effect));
     }
 }

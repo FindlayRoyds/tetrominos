@@ -28,7 +28,7 @@ fn update_tile_transforms(mut query: Query<(&Tile, &mut Transform)>, tilemaps: Q
         let tilemap = try_unwrap!(tilemaps.get(tile.tilemap), "No tilemap in tile_transforms");
         transform.translation = ((tile.pos - tilemap.size.as_vec2() / 2.0 + vec2(0.5, 0.5))
             * tilemap.tile_size.as_vec2())
-        .extend(0.0);
+        .extend(transform.translation.z);
     }
 }
 
