@@ -18,7 +18,7 @@ pub struct BoardConfig {
 impl Default for BoardConfig {
     fn default() -> Self {
         Self {
-            auto_shift_delay: 8,
+            auto_shift_delay: 10,
             auto_shift_speed: 0.25,
 
             stationary_lock_delay: 40,
