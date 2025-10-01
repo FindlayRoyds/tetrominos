@@ -1,13 +1,17 @@
 use bevy::prelude::*;
+use rand::{self, RngCore, SeedableRng};
+use rand_pcg::Pcg32;
 
 mod board;
 mod input;
+mod rng;
 mod tiles;
 mod warnings;
 
 use crate::{
     board::{BoardPlugin, placed_tile::PlacedTile, spawn_board},
     input::InputPlugin,
+    rng::RandomSource,
     tiles::{Tile, TilePlugin},
 };
 
@@ -30,6 +34,10 @@ fn setup(
 ) {
     commands.spawn(Camera2d);
 
+    let random_seed = rand::thread_rng().next_u64();
+    let mut rng = Pcg32::seed_from_u64(random_seed);
+    commands.insert_resource(RandomSource(rng.clone()));
+
     spawn_board(
         &mut commands,
         placed_tiles,
@@ -38,5 +46,6 @@ fn setup(
         &mut meshes,
         &mut materials,
         asset_server,
+        &mut rng,
     );
 }

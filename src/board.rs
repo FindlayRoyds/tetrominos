@@ -1,5 +1,6 @@
 use bevy::{ecs::query::QueryFilter, prelude::*};
 use leafwing_input_manager::prelude::ActionState;
+use rand::Rng;
 use strum::IntoEnumIterator;
 
 mod board_config;
@@ -28,6 +29,7 @@ use crate::{
         },
     },
     input::{Action, get_board_input_map},
+    rng::RandomSource,
     tiles::{Tile, Tilemap},
 };
 
@@ -100,7 +102,7 @@ impl Default for Board {
 }
 
 impl Board {
-    pub fn spawn_next(
+    pub fn spawn_next<T: Rng>(
         &mut self,
         commands: &mut Commands,
         self_entity: Entity,
@@ -108,9 +110,10 @@ impl Board {
         board_config: &BoardConfig,
         placed_tiles: Query<&Tile, With<PlacedTile>>,
         asset_server: &Res<AssetServer>,
+        mut rng: T,
     ) {
         let kind_variants: Vec<TetrominoKind> = TetrominoKind::iter().collect();
-        self.kind = kind_variants[fastrand::usize(..kind_variants.len())];
+        self.kind = kind_variants[rng.gen_range(0..kind_variants.len())];
         self.pos = vec2(4.0, tilemap.size.y as f32 - 0.4);
         self.rotation = 0;
         self.lock_delay = board_config.lock_delay;
@@ -151,7 +154,7 @@ impl Board {
         true
     }
 
-    pub fn place<T: QueryFilter, U: QueryFilter>(
+    pub fn place<T: QueryFilter, U: QueryFilter, R: Rng>(
         &mut self,
         commands: &mut Commands,
         self_entity: Entity,
@@ -161,6 +164,7 @@ impl Board {
         tetromino_tiles: Query<(Entity, &Tile), T>,
         ghost_tiles: Query<(Entity, &Tile), U>,
         asset_server: &Res<AssetServer>,
+        rng: R,
     ) {
         if self.can_place(
             self_entity,
@@ -193,6 +197,7 @@ impl Board {
             board_config,
             placed_tiles,
             asset_server,
+            rng,
         );
     }
 
@@ -225,7 +230,7 @@ fn snap_vec2(value: Vec2) -> IVec2 {
 
 // ========== Systems ==========
 
-pub fn spawn_board(
+pub fn spawn_board<T: Rng>(
     commands: &mut Commands,
     placed_tiles: Query<&Tile, With<PlacedTile>>,
     size: UVec2,
@@ -233,6 +238,7 @@ pub fn spawn_board(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
     asset_server: Res<AssetServer>,
+    rng: T,
 ) {
     let rec_size = (size * tile_size).as_vec2();
     let tilemap = Tilemap { size, tile_size };
@@ -256,6 +262,7 @@ pub fn spawn_board(
         &board_config,
         placed_tiles,
         &asset_server,
+        rng,
     );
     commands
         .entity(entity)
@@ -362,7 +369,9 @@ fn apply_hard_drop(
         (With<GhostTile>, Without<TetrominoTile>, Without<PlacedTile>),
     >,
     asset_server: Res<AssetServer>,
+    mut random_source: ResMut<RandomSource>,
 ) {
+    let rng = &mut random_source.0;
     for (board_entity, action_state, mut board, board_config, tilemap) in boards.iter_mut() {
         if action_state.just_pressed(&Action::HardDrop) {
             board.pos = board
@@ -377,6 +386,7 @@ fn apply_hard_drop(
                 tetromino_tiles,
                 ghost_tiles,
                 &asset_server,
+                &mut *rng,
             );
         }
     }
@@ -499,7 +509,10 @@ fn apply_placement(
         (With<GhostTile>, Without<TetrominoTile>, Without<PlacedTile>),
     >,
     asset_server: Res<AssetServer>,
+    mut random_source: ResMut<RandomSource>,
 ) {
+    let rng = &mut random_source.0;
+
     for (board_entity, mut board, board_config, tilemap, action_state) in boards.iter_mut() {
         let pos_below = board.get_snapped_pos() - ivec2(0, 1);
         if board.can_place(
@@ -531,6 +544,7 @@ fn apply_placement(
                 tetromino_tiles,
                 ghost_tiles,
                 &asset_server,
+                &mut *rng,
             );
         }
     }

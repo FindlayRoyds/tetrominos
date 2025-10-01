@@ -82,8 +82,7 @@ fn update_ghost_tile_positions(
 ) {
     for (mut tile, ghost_tile) in ghost_tiles.iter_mut() {
         let Ok((board, tilemap)) = boards.get(tile.tilemap) else {
-            bevy::log::warn_once!("Failed to get board in update tetromino tile positions");
-            continue;
+            continue; // Board likely has SkipUpdate component
         };
 
         let offsets = get_tetromino_shape(board.kind, board.rotation);
