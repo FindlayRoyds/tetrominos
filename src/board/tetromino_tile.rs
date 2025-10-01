@@ -1,11 +1,10 @@
-use bevy::prelude::*;
+use bevy::{ecs::query::QueryFilter, prelude::*};
 
 use crate::{
     board::{
         Board,
         board_config::BoardConfig,
         outline::TetrominoTileOutline,
-        placed_tile::PlacedTile,
         tetromino_data::{get_tetromino_color, get_tetromino_shape},
     },
     tiles::Tile,
@@ -18,12 +17,7 @@ impl Plugin for TetrominoTilePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             FixedUpdate,
-            (
-                // clear_tetromino_tiles,
-                // spawn_tetromino_tiles,
-                update_tetromino_tile_positions,
-                apply_lock_delay_visuals,
-            )
+            (update_tetromino_tile_positions, apply_lock_delay_visuals)
                 .chain()
                 .in_set(TetrominoTileVisuals),
         );
@@ -35,7 +29,7 @@ pub struct TetrominoTileVisuals;
 
 #[derive(Component)]
 pub struct TetrominoTile {
-    offset_index: usize,
+    pub offset_index: usize,
 }
 
 pub fn spawn_tetromino_tiles(
@@ -79,10 +73,10 @@ pub fn spawn_tetromino_tiles(
     }
 }
 
-pub fn clear_tetromino_tiles(
+pub fn clear_tetromino_tiles<T: QueryFilter>(
     commands: &mut Commands,
     board_entity: Entity,
-    tiles: Query<(Entity, &Tile), (With<TetrominoTile>, Without<PlacedTile>)>,
+    tiles: Query<(Entity, &Tile), T>,
 ) {
     for (tile_entity, tile) in tiles {
         if tile.tilemap != board_entity {

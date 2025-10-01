@@ -1,8 +1,9 @@
-use bevy::prelude::*;
+use bevy::{ecs::query::QueryFilter, prelude::*};
 use leafwing_input_manager::prelude::ActionState;
 use strum::IntoEnumIterator;
 
 mod board_config;
+mod ghost_tile;
 mod line_clear;
 mod outline;
 pub mod placed_tile;
@@ -12,6 +13,9 @@ mod tetromino_tile;
 use crate::{
     board::{
         board_config::BoardConfig,
+        ghost_tile::{
+            GhostTile, GhostTilePlugin, GhostTileVisuals, clear_ghost_tiles, spawn_ghost_tiles,
+        },
         line_clear::{LineClearPlugin, LineClearVisuals, clear_lines},
         placed_tile::PlacedTile,
         tetromino_data::{
@@ -31,7 +35,7 @@ pub struct BoardPlugin;
 
 impl Plugin for BoardPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((LineClearPlugin, TetrominoTilePlugin))
+        app.add_plugins((LineClearPlugin, TetrominoTilePlugin, GhostTilePlugin))
             .add_systems(
                 FixedUpdate,
                 (
@@ -53,7 +57,13 @@ impl Plugin for BoardPlugin {
             )
             .configure_sets(
                 FixedUpdate,
-                (BoardUpdates, LineClearVisuals, TetrominoTileVisuals).chain(),
+                (
+                    BoardUpdates,
+                    LineClearVisuals,
+                    TetrominoTileVisuals,
+                    GhostTileVisuals,
+                )
+                    .chain(),
             );
     }
 }
@@ -112,8 +122,9 @@ impl Board {
             self.rotation,
         ) {
             spawn_tetromino_tiles(commands, self, self_entity, asset_server);
+            spawn_ghost_tiles(commands, self, self_entity, asset_server);
         } else {
-            bevy::log::error!("Attempted to spawn tetromino at invalid position");
+            bevy::log::error_once!("Attempted to spawn tetromino at invalid position");
         }
     }
 
@@ -140,14 +151,15 @@ impl Board {
         true
     }
 
-    pub fn place(
+    pub fn place<T: QueryFilter, U: QueryFilter>(
         &mut self,
         commands: &mut Commands,
         self_entity: Entity,
         board_config: &BoardConfig,
         tilemap: &Tilemap,
         placed_tiles: Query<&Tile, With<PlacedTile>>,
-        tetromino_tiles: Query<(Entity, &Tile), (With<TetrominoTile>, Without<PlacedTile>)>,
+        tetromino_tiles: Query<(Entity, &Tile), T>,
+        ghost_tiles: Query<(Entity, &Tile), U>,
         asset_server: &Res<AssetServer>,
     ) {
         if self.can_place(
@@ -173,6 +185,7 @@ impl Board {
             }
         }
         clear_tetromino_tiles(commands, self_entity, tetromino_tiles);
+        clear_ghost_tiles(commands, self_entity, ghost_tiles);
         self.spawn_next(
             commands,
             self_entity,
@@ -181,6 +194,24 @@ impl Board {
             placed_tiles,
             asset_server,
         );
+    }
+
+    fn get_hard_drop_pos(
+        &self,
+        self_entity: Entity,
+        tilemap: &Tilemap,
+        placed_tiles: Query<&Tile, With<PlacedTile>>,
+    ) -> IVec2 {
+        let mut result = self.get_snapped_pos();
+        for y_pos in (0..self.get_snapped_pos().y).rev() {
+            let new_pos = ivec2(self.get_snapped_pos().x, y_pos);
+            if self.can_place(self_entity, tilemap, placed_tiles, new_pos, self.rotation) {
+                result = new_pos;
+            } else {
+                break;
+            }
+        }
+        result
     }
 
     fn get_snapped_pos(&self) -> IVec2 {
@@ -326,19 +357,17 @@ fn apply_hard_drop(
     >,
     placed_tiles: Query<&Tile, With<PlacedTile>>,
     tetromino_tiles: Query<(Entity, &Tile), (With<TetrominoTile>, Without<PlacedTile>)>,
+    ghost_tiles: Query<
+        (Entity, &Tile),
+        (With<GhostTile>, Without<TetrominoTile>, Without<PlacedTile>),
+    >,
     asset_server: Res<AssetServer>,
 ) {
     for (board_entity, action_state, mut board, board_config, tilemap) in boards.iter_mut() {
         if action_state.just_pressed(&Action::HardDrop) {
-            for y_pos in (0..board.get_snapped_pos().y).rev() {
-                let new_pos = ivec2(board.get_snapped_pos().x, y_pos);
-                if board.can_place(board_entity, tilemap, placed_tiles, new_pos, board.rotation) {
-                    board.pos = new_pos.as_vec2();
-                } else {
-                    break;
-                }
-            }
-
+            board.pos = board
+                .get_hard_drop_pos(board_entity, tilemap, placed_tiles)
+                .as_vec2();
             board.place(
                 &mut commands,
                 board_entity,
@@ -346,6 +375,7 @@ fn apply_hard_drop(
                 tilemap,
                 placed_tiles,
                 tetromino_tiles,
+                ghost_tiles,
                 &asset_server,
             );
         }
@@ -353,10 +383,19 @@ fn apply_hard_drop(
 }
 
 pub fn apply_rotation(
-    mut boards: Query<(Entity, &ActionState<Action>, &mut Board, &Tilemap), Without<SkipUpdate>>,
+    mut boards: Query<
+        (
+            Entity,
+            &ActionState<Action>,
+            &mut Board,
+            &BoardConfig,
+            &Tilemap,
+        ),
+        Without<SkipUpdate>,
+    >,
     placed_tiles: Query<&Tile, With<PlacedTile>>,
 ) {
-    for (board_entity, action_state, mut board, tilemap) in boards.iter_mut() {
+    for (board_entity, action_state, mut board, board_config, tilemap) in boards.iter_mut() {
         let new_rotation = if action_state.just_pressed(&Action::RotateRight) {
             board.rotation + 1
         } else if action_state.just_pressed(&Action::RotateLeft) {
@@ -364,6 +403,8 @@ pub fn apply_rotation(
         } else {
             continue;
         };
+
+        board.stationary_lock_delay = board_config.stationary_lock_delay;
 
         let offsets = get_tetromino_wall_kicks(board.rotation, new_rotation, board.kind);
         for offset in offsets.iter() {
@@ -374,7 +415,7 @@ pub fn apply_rotation(
                 return;
             }
         }
-        bevy::log::warn!("All wall kicks failed!");
+        bevy::log::warn_once!("All wall kicks failed!");
     }
 }
 
@@ -453,6 +494,10 @@ fn apply_placement(
     >,
     placed_tiles: Query<&Tile, With<PlacedTile>>,
     tetromino_tiles: Query<(Entity, &Tile), (With<TetrominoTile>, Without<PlacedTile>)>,
+    ghost_tiles: Query<
+        (Entity, &Tile),
+        (With<GhostTile>, Without<TetrominoTile>, Without<PlacedTile>),
+    >,
     asset_server: Res<AssetServer>,
 ) {
     for (board_entity, mut board, board_config, tilemap, action_state) in boards.iter_mut() {
@@ -484,6 +529,7 @@ fn apply_placement(
                 tilemap,
                 placed_tiles,
                 tetromino_tiles,
+                ghost_tiles,
                 &asset_server,
             );
         }

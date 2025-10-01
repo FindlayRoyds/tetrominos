@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{ecs::query::QueryFilter, prelude::*};
 
 use crate::tiles::Tile;
 
@@ -17,15 +17,12 @@ impl Tilemap {
 
     /// Be careful of float comparisons. Shouldn't be an issue on integer position values.
     #[allow(dead_code)]
-    pub fn get_tiles<F>(
+    pub fn get_tiles<F: QueryFilter>(
         &self,
         self_entity: Entity,
         pos: Vec2,
         tiles: Query<(Entity, &Tile), F>,
-    ) -> Vec<Entity>
-    where
-        F: bevy::ecs::query::QueryFilter,
-    {
+    ) -> Vec<Entity> {
         tiles
             .iter()
             .filter_map(|(entity, tile)| {
@@ -40,10 +37,12 @@ impl Tilemap {
 
     /// Be careful of float comparisons. Shouldn't be an issue on integer position values.
     #[allow(dead_code)]
-    pub fn is_tile<F>(&self, self_entity: Entity, pos: Vec2, tiles: Query<&Tile, F>) -> bool
-    where
-        F: bevy::ecs::query::QueryFilter,
-    {
+    pub fn is_tile<F: QueryFilter>(
+        &self,
+        self_entity: Entity,
+        pos: Vec2,
+        tiles: Query<&Tile, F>,
+    ) -> bool {
         tiles
             .iter()
             .any(|tile| tile.tilemap == self_entity && tile.pos == pos)
