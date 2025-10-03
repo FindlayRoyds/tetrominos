@@ -9,7 +9,12 @@ mod tiles;
 mod warnings;
 
 use crate::{
-    board::{BoardPlugin, placed_tile::PlacedTile, spawn_board},
+    board::{
+        BoardPlugin,
+        placed_tile::PlacedTile,
+        spawn_board,
+        tile_assets::{TileImages, TileOutlineImages},
+    },
     input::InputPlugin,
     rng::RandomSource,
     tiles::{Tile, TilePlugin},
@@ -30,7 +35,8 @@ fn setup(
     placed_tiles: Query<&Tile, With<PlacedTile>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    asset_server: Res<AssetServer>,
+    tile_images: Res<TileImages>,
+    tile_outline_images: Res<TileOutlineImages>,
 ) {
     commands.spawn(Camera2d);
 
@@ -45,7 +51,8 @@ fn setup(
         uvec2(8, 8),
         &mut meshes,
         &mut materials,
-        asset_server,
+        tile_images,
+        tile_outline_images,
         &mut rng,
     );
 }

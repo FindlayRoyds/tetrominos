@@ -5,7 +5,8 @@ use crate::{
         Board,
         board_config::BoardConfig,
         outline::TetrominoTileOutline,
-        tetromino_data::{get_tetromino_color, get_tetromino_shape},
+        tetromino_data::get_tetromino_shape,
+        tile_assets::{TileImages, TileOutlineImages},
     },
     tiles::Tile,
     try_unwrap,
@@ -36,14 +37,14 @@ pub fn spawn_tetromino_tiles(
     commands: &mut Commands,
     board: &Board,
     board_entity: Entity,
-    asset_server: &Res<AssetServer>,
+    tile_images: &Res<TileImages>,
+    tile_outline_images: &Res<TileOutlineImages>,
 ) {
     for (index, offset) in get_tetromino_shape(board.kind, board.rotation)
         .iter()
         .enumerate()
     {
         let pos = (board.get_snapped_pos() + offset).as_vec2();
-        let color_str = get_tetromino_color(board.kind);
         commands.spawn((
             Name::new("TetrominoTile"),
             Tile {
@@ -54,7 +55,7 @@ pub fn spawn_tetromino_tiles(
                 offset_index: index,
             },
             ChildOf(board_entity),
-            Sprite::from_image(asset_server.load(format!("tiles/tile_{}.png", color_str))),
+            Sprite::from_image(tile_images.0[&board.kind].clone()),
         ));
         commands.spawn((
             Name::new("TetrominoTileOutline"),
@@ -67,7 +68,7 @@ pub fn spawn_tetromino_tiles(
             },
             TetrominoTileOutline,
             ChildOf(board_entity),
-            Sprite::from_image(asset_server.load(format!("tiles/outline_{}.png", color_str))),
+            Sprite::from_image(tile_outline_images.0[&board.kind].clone()),
             Transform::from_translation(Vec3::new(0.0, 0.0, 2.0)),
         ));
     }

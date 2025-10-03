@@ -10,6 +10,7 @@ mod outline;
 pub mod placed_tile;
 mod tetromino_data;
 mod tetromino_tile;
+pub mod tile_assets;
 
 use crate::{
     board::{
@@ -20,13 +21,13 @@ use crate::{
         line_clear::{LineClearPlugin, LineClearVisuals, clear_lines},
         placed_tile::PlacedTile,
         tetromino_data::{
-            TetrominoKind, TetrominoRotation, get_tetromino_color, get_tetromino_shape,
-            get_tetromino_wall_kicks,
+            TetrominoKind, TetrominoRotation, get_tetromino_shape, get_tetromino_wall_kicks,
         },
         tetromino_tile::{
             TetrominoTile, TetrominoTilePlugin, TetrominoTileVisuals, clear_tetromino_tiles,
             spawn_tetromino_tiles,
         },
+        tile_assets::{TileAssets, TileImages, TileOutlineImages},
     },
     input::{Action, get_board_input_map},
     rng::RandomSource,
@@ -37,36 +38,41 @@ pub struct BoardPlugin;
 
 impl Plugin for BoardPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((LineClearPlugin, TetrominoTilePlugin, GhostTilePlugin))
-            .add_systems(
-                FixedUpdate,
-                (
-                    move_lines_down,
-                    apply_shift,
-                    apply_auto_shift,
-                    apply_soft_drop,
-                    apply_hard_drop,
-                    apply_gravity,
-                    apply_rotation,
-                    apply_movement,
-                    apply_collisions,
-                    apply_placement,
-                    clear_lines,
-                    remove_skip_update,
-                )
-                    .chain()
-                    .in_set(BoardUpdates),
+        app.add_plugins((
+            LineClearPlugin,
+            TetrominoTilePlugin,
+            GhostTilePlugin,
+            TileAssets,
+        ))
+        .add_systems(
+            FixedUpdate,
+            (
+                move_lines_down,
+                apply_shift,
+                apply_auto_shift,
+                apply_soft_drop,
+                apply_hard_drop,
+                apply_gravity,
+                apply_rotation,
+                apply_movement,
+                apply_collisions,
+                apply_placement,
+                clear_lines,
+                remove_skip_update,
             )
-            .configure_sets(
-                FixedUpdate,
-                (
-                    BoardUpdates,
-                    LineClearVisuals,
-                    TetrominoTileVisuals,
-                    GhostTileVisuals,
-                )
-                    .chain(),
-            );
+                .chain()
+                .in_set(BoardUpdates),
+        )
+        .configure_sets(
+            FixedUpdate,
+            (
+                BoardUpdates,
+                LineClearVisuals,
+                TetrominoTileVisuals,
+                GhostTileVisuals,
+            )
+                .chain(),
+        );
     }
 }
 
@@ -109,7 +115,8 @@ impl Board {
         tilemap: &Tilemap,
         board_config: &BoardConfig,
         placed_tiles: Query<&Tile, With<PlacedTile>>,
-        asset_server: &Res<AssetServer>,
+        tile_images: &Res<TileImages>,
+        tile_outline_images: &Res<TileOutlineImages>,
         mut rng: T,
     ) {
         let kind_variants: Vec<TetrominoKind> = TetrominoKind::iter().collect();
@@ -124,8 +131,14 @@ impl Board {
             self.get_snapped_pos(),
             self.rotation,
         ) {
-            spawn_tetromino_tiles(commands, self, self_entity, asset_server);
-            spawn_ghost_tiles(commands, self, self_entity, asset_server);
+            spawn_tetromino_tiles(
+                commands,
+                self,
+                self_entity,
+                tile_images,
+                tile_outline_images,
+            );
+            spawn_ghost_tiles(commands, self, self_entity, tile_outline_images);
         } else {
             bevy::log::error_once!("Attempted to spawn tetromino at invalid position");
         }
@@ -163,7 +176,8 @@ impl Board {
         placed_tiles: Query<&Tile, With<PlacedTile>>,
         tetromino_tiles: Query<(Entity, &Tile), T>,
         ghost_tiles: Query<(Entity, &Tile), U>,
-        asset_server: &Res<AssetServer>,
+        tile_images: &Res<TileImages>,
+        tile_outline_images: &Res<TileOutlineImages>,
         rng: R,
     ) {
         if self.can_place(
@@ -175,7 +189,6 @@ impl Board {
         ) {
             for offset in get_tetromino_shape(self.kind, self.rotation) {
                 let pos = self.get_snapped_pos() + offset;
-                let color_str = get_tetromino_color(self.kind);
                 commands.spawn((
                     Name::new("PlacedTile"),
                     Tile {
@@ -184,7 +197,7 @@ impl Board {
                     },
                     PlacedTile,
                     ChildOf(self_entity),
-                    Sprite::from_image(asset_server.load(format!("tiles/tile_{}.png", color_str))),
+                    Sprite::from_image(tile_images.0[&self.kind].clone()),
                 ));
             }
         }
@@ -196,7 +209,8 @@ impl Board {
             tilemap,
             board_config,
             placed_tiles,
-            asset_server,
+            tile_images,
+            tile_outline_images,
             rng,
         );
     }
@@ -237,7 +251,8 @@ pub fn spawn_board<T: Rng>(
     tile_size: UVec2,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
-    asset_server: Res<AssetServer>,
+    tile_images: Res<TileImages>,
+    tile_outline_images: Res<TileOutlineImages>,
     rng: T,
 ) {
     let rec_size = (size * tile_size).as_vec2();
@@ -261,7 +276,8 @@ pub fn spawn_board<T: Rng>(
         &tilemap,
         &board_config,
         placed_tiles,
-        &asset_server,
+        &tile_images,
+        &tile_outline_images,
         rng,
     );
     commands
@@ -368,7 +384,8 @@ fn apply_hard_drop(
         (Entity, &Tile),
         (With<GhostTile>, Without<TetrominoTile>, Without<PlacedTile>),
     >,
-    asset_server: Res<AssetServer>,
+    tile_images: Res<TileImages>,
+    tile_outline_images: Res<TileOutlineImages>,
     mut random_source: ResMut<RandomSource>,
 ) {
     let rng = &mut random_source.0;
@@ -385,7 +402,8 @@ fn apply_hard_drop(
                 placed_tiles,
                 tetromino_tiles,
                 ghost_tiles,
-                &asset_server,
+                &tile_images,
+                &tile_outline_images,
                 &mut *rng,
             );
         }
@@ -508,7 +526,8 @@ fn apply_placement(
         (Entity, &Tile),
         (With<GhostTile>, Without<TetrominoTile>, Without<PlacedTile>),
     >,
-    asset_server: Res<AssetServer>,
+    tile_images: Res<TileImages>,
+    tile_outline_images: Res<TileOutlineImages>,
     mut random_source: ResMut<RandomSource>,
 ) {
     let rng = &mut random_source.0;
@@ -543,7 +562,8 @@ fn apply_placement(
                 placed_tiles,
                 tetromino_tiles,
                 ghost_tiles,
-                &asset_server,
+                &tile_images,
+                &tile_outline_images,
                 &mut *rng,
             );
         }

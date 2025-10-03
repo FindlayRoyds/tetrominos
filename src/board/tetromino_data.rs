@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use strum_macros::{EnumCount, EnumIter};
 
-#[derive(EnumIter, EnumCount, Copy, Clone, Debug)]
+#[derive(EnumIter, EnumCount, Copy, Clone, Debug, Hash, PartialEq, Eq)]
 pub enum TetrominoKind {
     I,
     J,

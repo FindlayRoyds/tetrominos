@@ -9,7 +9,7 @@ pub struct LineClearPlugin;
 
 impl Plugin for LineClearPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
+        app.add_systems(Startup, setup).add_systems(
             FixedUpdate,
             (
                 apply_line_clear_lifetime,
@@ -24,10 +24,18 @@ impl Plugin for LineClearPlugin {
 #[derive(SystemSet, Hash, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LineClearVisuals;
 
+#[derive(Resource)]
+pub struct LineClearSprite(Handle<Image>);
+
 #[derive(Component)]
 pub struct LineClearTile {
     pub fade_time: i32, // Below what lifetime the tile should start to fade
     pub lifetime: i32,
+}
+
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let line_clear_sprite: Handle<Image> = asset_server.load("tiles/line_clear.png");
+    commands.insert_resource(LineClearSprite(line_clear_sprite));
 }
 
 fn apply_line_clear_skip_update(
@@ -64,7 +72,7 @@ pub fn clear_lines(
     mut commands: Commands,
     mut boards: Query<(Entity, &Tilemap, &BoardConfig), (With<Board>, Without<SkipUpdate>)>,
     placed_tiles: Query<(Entity, &Tile), With<PlacedTile>>,
-    asset_server: Res<AssetServer>,
+    line_clear_sprite: Res<LineClearSprite>,
 ) {
     for (board_entity, tilemap, board_config) in boards.iter_mut() {
         for y in 0..tilemap.size.y as i32 {
@@ -101,7 +109,7 @@ pub fn clear_lines(
                                 + board_config.line_clear_horizontal_delay * x,
                         },
                         ChildOf(board_entity),
-                        Sprite::from_image(asset_server.load("tiles/line_clear.png")),
+                        Sprite::from_image(line_clear_sprite.0.clone()),
                     ));
                 }
             }
