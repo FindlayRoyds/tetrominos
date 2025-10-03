@@ -9,7 +9,6 @@ use crate::{
         tile_assets::{TileImages, TileOutlineImages},
     },
     tiles::Tile,
-    try_unwrap,
 };
 
 pub struct TetrominoTilePlugin;
@@ -108,10 +107,10 @@ fn apply_lock_delay_visuals(
     boards: Query<(&Board, &BoardConfig)>,
 ) {
     for (tile, mut sprite) in tiles.iter_mut() {
-        let (board, board_config) = try_unwrap!(
-            boards.get(tile.tilemap),
-            "Failed to get board in ld visuals"
-        );
+        let Ok((board, board_config)) = boards.get(tile.tilemap) else {
+            bevy::log::error_once!("Failed to get board in apply_lock_delay_visuals");
+            continue;
+        };
 
         let normal_effect =
             board.stationary_lock_delay as f32 / board_config.stationary_lock_delay as f32;

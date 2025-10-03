@@ -6,7 +6,6 @@ mod board;
 mod input;
 mod rng;
 mod tiles;
-mod warnings;
 
 use crate::{
     board::{

@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{tiles::Tilemap, try_unwrap};
+use crate::tiles::Tilemap;
 
 pub struct TilePlugin;
 
@@ -19,7 +19,11 @@ pub struct Tile {
 
 fn update_tile_transforms(mut query: Query<(&Tile, &mut Transform)>, tilemaps: Query<&Tilemap>) {
     for (tile, mut transform) in query.iter_mut() {
-        let tilemap = try_unwrap!(tilemaps.get(tile.tilemap), "No tilemap in tile_transforms");
+        let Ok(tilemap) = tilemaps.get(tile.tilemap) else {
+            bevy::log::error_once!("Failed to get tilemap from tile in update_tile_transforms");
+            continue;
+        };
+
         transform.translation = ((tile.pos - tilemap.size.as_vec2() / 2.0 + vec2(0.5, 0.5))
             * tilemap.tile_size.as_vec2())
         .extend(transform.translation.z);
@@ -28,7 +32,11 @@ fn update_tile_transforms(mut query: Query<(&Tile, &mut Transform)>, tilemaps: Q
 
 fn update_tile_visibility(mut tiles: Query<(&Tile, &mut Visibility)>, tilemaps: Query<&Tilemap>) {
     for (tile, mut visibility) in tiles.iter_mut() {
-        let tilemap = try_unwrap!(tilemaps.get(tile.tilemap), "No tilemap in tile_visibility");
+        let Ok(tilemap) = tilemaps.get(tile.tilemap) else {
+            bevy::log::error_once!("Failed to get tilemap from tile in update_tile_visibility");
+            continue;
+        };
+
         *visibility = if tilemap.is_in_bounds(tile.pos.as_ivec2()) {
             Visibility::Visible
         } else {
