@@ -39,7 +39,7 @@ fn setup(
 ) {
     commands.spawn(Camera2d);
 
-    let random_seed = rand::thread_rng().next_u64();
+    let random_seed = rand::rng().next_u64();
     let mut rng = Pcg32::seed_from_u64(random_seed);
     commands.insert_resource(RandomSource(rng.clone()));
 

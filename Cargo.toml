@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bevy = { version = "0.16", default-features = false, features = [
+bevy = { version = "0.17", default-features = false, features = [
     # Parts of Bevy:
     # "animation",                   # Enable animation for everything that supports it
     "bevy_asset", # Asset management
@@ -21,7 +21,8 @@ bevy = { version = "0.16", default-features = false, features = [
     # "bevy_picking",                # Picking (selection of objects by cursor)
     "bevy_render", # GPU support (based on `wgpu`)
     "bevy_scene",  # ECS Scenes
-    "bevy_sprite", # 2D rendering (sprites, meshes, text)
+    # "bevy_sprite",        # 2D rendering (sprites, meshes, text)
+    "bevy_sprite_render",
     # "bevy_sprite_picking_backend", # 2D sprite picking (selection by cursor)
     "bevy_state", # App state management
     # "bevy_text",                   # Text rendering
@@ -35,7 +36,7 @@ bevy = { version = "0.16", default-features = false, features = [
     "async_executor", # Enable the Async Executor (Bevy task pools)
     "multi_threaded", # Enable CPU multithreading
     "sysinfo_plugin", # Support CPU and RAM usage diagnostics
-    "custom_cursor",  # Support custom cursors
+    # "custom_cursor",  # Support custom cursors
 
     # Platform-Specific
     "x11", # Linux: Support X11 windowing system
@@ -44,22 +45,22 @@ bevy = { version = "0.16", default-features = false, features = [
     "webgl2", # Web: use WebGL2 instead of WebGPU
 
     # Built-in Data
-    "default_font",     # Built-in default font for UI (Fira Mono)
-    "smaa_luts",        # Support SMAA antialiasing
-    "tonemapping_luts", # Support different camera Tonemapping modes (enables KTX2+zstd)
+    "default_font", # Built-in default font for UI (Fira Mono)
+    # "smaa_luts",    # Support SMAA antialiasing
+    # "tonemapping_luts", # Support different camera Tonemapping modes (enables KTX2+zstd)
 
     # Asset File Format Support
     # "bevy_gltf", # GLTF 3D asset support
     "png", # PNG image format for simple 2D images
     # "hdr",       # HDR image format
     # "ktx2",      # KTX2 format for GPU texture data
-    # "zstd",      # ZSTD compression support in KTX2 files
+    # "zstd_rust", # ZSTD compression support in KTX2 files
     # "vorbis",    # Audio: OGG Vorbis
 ] }
-rand = { version = "0.8", features = ["std", "small_rng"] }
-rand_pcg = "0.3"
-getrandom = { version = "0.2", features = ["js"] }
-leafwing-input-manager = "0.17.1"
+rand = { version = "0.9", features = ["std", "small_rng"] }
+rand_pcg = "0.9"
+getrandom = { version = "0.3", features = ["wasm_js"] }
+leafwing-input-manager = "0.18.0"
 # Set max log levels. This helps avoid unwanted low-severity log spam, which can affect performance.
 log = { version = "0.4", features = [
     "max_level_debug",

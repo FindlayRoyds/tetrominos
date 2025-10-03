@@ -120,7 +120,7 @@ impl Board {
         mut rng: T,
     ) {
         let kind_variants: Vec<TetrominoKind> = TetrominoKind::iter().collect();
-        self.kind = kind_variants[rng.gen_range(0..kind_variants.len())];
+        self.kind = kind_variants[rng.random_range(0..kind_variants.len())];
         self.pos = vec2(4.0, tilemap.size.y as f32 - 0.4);
         self.rotation = 0;
         self.lock_delay = board_config.lock_delay;
