@@ -1039,6 +1039,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_shuffle_bag"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e71adc662f07822c012aefa7039ef87139c95f7b6db29a243036f6bbcbe6898"
+dependencies = [
+ "bevy",
+ "rand",
+]
+
+[[package]]
 name = "bevy_sprite"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3662,6 +3672,7 @@ name = "tetrominoes"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "bevy_shuffle_bag",
  "getrandom",
  "leafwing-input-manager",
  "log",

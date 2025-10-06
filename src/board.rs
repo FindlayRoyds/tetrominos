@@ -1,4 +1,7 @@
+use std::collections::VecDeque;
+
 use bevy::{ecs::query::QueryFilter, prelude::*};
+use bevy_shuffle_bag::ShuffleBag;
 use leafwing_input_manager::prelude::ActionState;
 use rand::Rng;
 use strum::IntoEnumIterator;
@@ -86,15 +89,26 @@ pub struct SkipUpdate;
 pub struct Board {
     kind: TetrominoKind,
     pos: Vec2,
-    movement: Vec2,
     rotation: TetrominoRotation,
+
+    movement: Vec2,
     stationary_lock_delay: i32,
     lock_delay: i32,
     auto_shift_delay: i32,
+
+    queue: VecDeque<TetrominoKind>,
+    random_bag: ShuffleBag<TetrominoKind>,
 }
 
-impl Default for Board {
-    fn default() -> Self {
+impl Board {
+    fn new<T: Rng>(mut rng: T) -> Self {
+        let shuffle_bag = ShuffleBag::try_new(
+            TetrominoKind::iter().collect::<Vec<TetrominoKind>>(),
+            &mut rng,
+        )
+        .expect("Failed to create shuffle bag");
+        let queue = VecDeque::from_iter(TetrominoKind::iter());
+
         Self {
             kind: TetrominoKind::I,
             pos: Default::default(),
@@ -103,6 +117,8 @@ impl Default for Board {
             stationary_lock_delay: Default::default(),
             lock_delay: Default::default(),
             auto_shift_delay: Default::default(),
+            queue,
+            random_bag: shuffle_bag,
         }
     }
 }
@@ -119,11 +135,16 @@ impl Board {
         tile_outline_images: &Res<TileOutlineImages>,
         mut rng: T,
     ) {
-        let kind_variants: Vec<TetrominoKind> = TetrominoKind::iter().collect();
-        self.kind = kind_variants[rng.random_range(0..kind_variants.len())];
+        let Some(kind) = self.queue.pop_front() else {
+            error_once!("Attempted to pop from empty piece queue!");
+            return;
+        };
+        self.queue.push_back(*self.random_bag.pick(&mut rng));
+        self.kind = kind;
         self.pos = vec2(4.0, tilemap.size.y as f32 - 0.4);
         self.rotation = 0;
         self.lock_delay = board_config.lock_delay;
+
         if self.can_place(
             self_entity,
             tilemap,
@@ -253,12 +274,12 @@ pub fn spawn_board<T: Rng>(
     materials: &mut ResMut<Assets<ColorMaterial>>,
     tile_images: Res<TileImages>,
     tile_outline_images: Res<TileOutlineImages>,
-    rng: T,
+    mut rng: T,
 ) {
     let rec_size = (size * tile_size).as_vec2();
     let tilemap = Tilemap { size, tile_size };
     let board_config = BoardConfig::default();
-    let mut board = Board::default();
+    let mut board = Board::new(&mut rng);
 
     let entity = commands
         .spawn((
