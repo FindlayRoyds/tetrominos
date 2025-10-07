@@ -1,7 +1,10 @@
 use bevy::prelude::*;
 
 use crate::{
-    board::{Board, SkipUpdate, board_config::BoardConfig, placed_tile::PlacedTile},
+    board::{
+        AddSkipUpdateSystems, Board, BoardUpdateSystems, RemoveSkipUpdateSystems, SkipUpdate,
+        board_config::BoardConfig, placed_tile::PlacedTile,
+    },
     tiles::{Tile, Tilemap},
 };
 
@@ -12,17 +15,15 @@ impl Plugin for LineClearPlugin {
         app.add_systems(Startup, setup).add_systems(
             FixedUpdate,
             (
-                apply_line_clear_lifetime,
-                apply_line_clear_skip_update,
-                apply_line_clear_visuals,
-            )
-                .in_set(LineClearVisuals),
+                clear_lines
+                    .after(BoardUpdateSystems)
+                    .before(RemoveSkipUpdateSystems),
+                (apply_line_clear_lifetime, apply_line_clear_visuals).after(clear_lines),
+                apply_line_clear_skip_update.in_set(AddSkipUpdateSystems),
+            ),
         );
     }
 }
-
-#[derive(SystemSet, Hash, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LineClearVisuals;
 
 #[derive(Resource)]
 pub struct LineClearSprite(Handle<Image>);
@@ -67,8 +68,7 @@ fn apply_line_clear_visuals(mut line_clear_tiles: Query<(&mut Transform, &LineCl
     }
 }
 
-/// In BoardUpdates set
-pub fn clear_lines(
+fn clear_lines(
     mut commands: Commands,
     mut boards: Query<(Entity, &Tilemap, &BoardConfig), (With<Board>, Without<SkipUpdate>)>,
     placed_tiles: Query<(Entity, &Tile), With<PlacedTile>>,

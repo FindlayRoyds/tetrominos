@@ -2,7 +2,7 @@ use bevy::{ecs::query::QueryFilter, prelude::*};
 
 use crate::{
     board::{
-        Board,
+        Board, BoardUpdateSystems,
         board_config::BoardConfig,
         outline::TetrominoTileOutline,
         tetromino_data::get_tetromino_shape,
@@ -19,13 +19,10 @@ impl Plugin for TetrominoTilePlugin {
             FixedUpdate,
             (update_tetromino_tile_positions, apply_lock_delay_visuals)
                 .chain()
-                .in_set(TetrominoTileVisuals),
+                .after(BoardUpdateSystems),
         );
     }
 }
-
-#[derive(SystemSet, Hash, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TetrominoTileVisuals;
 
 #[derive(Component)]
 pub struct TetrominoTile {

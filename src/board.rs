@@ -18,17 +18,14 @@ pub mod tile_assets;
 use crate::{
     board::{
         board_config::BoardConfig,
-        ghost_tile::{
-            GhostTile, GhostTilePlugin, GhostTileVisuals, clear_ghost_tiles, spawn_ghost_tiles,
-        },
-        line_clear::{LineClearPlugin, LineClearVisuals, clear_lines},
+        ghost_tile::{GhostTile, GhostTilePlugin, clear_ghost_tiles, spawn_ghost_tiles},
+        line_clear::LineClearPlugin,
         placed_tile::PlacedTile,
         tetromino_data::{
             TetrominoKind, TetrominoRotation, get_tetromino_shape, get_tetromino_wall_kicks,
         },
         tetromino_tile::{
-            TetrominoTile, TetrominoTilePlugin, TetrominoTileVisuals, clear_tetromino_tiles,
-            spawn_tetromino_tiles,
+            TetrominoTile, TetrominoTilePlugin, clear_tetromino_tiles, spawn_tetromino_tiles,
         },
         tile_assets::{TileAssets, TileImages, TileOutlineImages},
     },
@@ -50,29 +47,29 @@ impl Plugin for BoardPlugin {
         .add_systems(
             FixedUpdate,
             (
-                move_lines_down,
-                apply_shift,
-                apply_auto_shift,
-                apply_soft_drop,
-                apply_hard_drop,
-                apply_gravity,
-                apply_rotation,
-                apply_movement,
-                apply_collisions,
-                apply_placement,
-                clear_lines,
-                remove_skip_update,
-            )
-                .chain()
-                .in_set(BoardUpdates),
+                (
+                    move_lines_down,
+                    apply_shift,
+                    apply_auto_shift,
+                    apply_soft_drop,
+                    apply_hard_drop,
+                    apply_gravity,
+                    apply_rotation,
+                    apply_movement,
+                    apply_collisions,
+                    apply_placement,
+                )
+                    .chain()
+                    .in_set(BoardUpdateSystems),
+                remove_skip_update.in_set(RemoveSkipUpdateSystems),
+            ),
         )
         .configure_sets(
             FixedUpdate,
             (
-                BoardUpdates,
-                LineClearVisuals,
-                TetrominoTileVisuals,
-                GhostTileVisuals,
+                BoardUpdateSystems,
+                RemoveSkipUpdateSystems,
+                AddSkipUpdateSystems,
             )
                 .chain(),
         );
@@ -80,7 +77,13 @@ impl Plugin for BoardPlugin {
 }
 
 #[derive(SystemSet, Hash, Debug, Clone, Copy, PartialEq, Eq)]
-struct BoardUpdates;
+struct BoardUpdateSystems;
+
+#[derive(SystemSet, Hash, Debug, Clone, Copy, PartialEq, Eq)]
+struct RemoveSkipUpdateSystems;
+
+#[derive(SystemSet, Hash, Debug, Clone, Copy, PartialEq, Eq)]
+struct AddSkipUpdateSystems;
 
 #[derive(Component)]
 pub struct SkipUpdate;
@@ -326,9 +329,11 @@ fn move_lines_down(
                 }
             }
 
-            for tile_entity in tiles_in_line.iter() {
-                if let Ok((_, mut tile)) = tile_queries.p1().get_mut(*tile_entity) {
-                    tile.pos -= ivec2(0, num_cleared_lines).as_vec2();
+            if num_cleared_lines > 0 {
+                for tile_entity in tiles_in_line.iter() {
+                    if let Ok((_, mut tile)) = tile_queries.p1().get_mut(*tile_entity) {
+                        tile.pos -= ivec2(0, num_cleared_lines).as_vec2();
+                    }
                 }
             }
             if tiles_in_line.is_empty() {

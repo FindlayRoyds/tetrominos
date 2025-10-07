@@ -2,8 +2,8 @@ use bevy::{ecs::query::QueryFilter, prelude::*};
 
 use crate::{
     board::{
-        Board, SkipUpdate, placed_tile::PlacedTile, tetromino_data::get_tetromino_shape,
-        tile_assets::TileOutlineImages,
+        Board, BoardUpdateSystems, RemoveSkipUpdateSystems, SkipUpdate, placed_tile::PlacedTile,
+        tetromino_data::get_tetromino_shape, tile_assets::TileOutlineImages,
     },
     tiles::{Tile, Tilemap},
 };
@@ -14,13 +14,12 @@ impl Plugin for GhostTilePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             FixedUpdate,
-            update_ghost_tile_positions.in_set(GhostTileVisuals),
+            (update_ghost_tile_positions, update_ghost_tile_visibility)
+                .after(BoardUpdateSystems)
+                .before(RemoveSkipUpdateSystems),
         );
     }
 }
-
-#[derive(SystemSet, Hash, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GhostTileVisuals;
 
 #[derive(Component)]
 pub struct GhostTile {
@@ -82,5 +81,20 @@ fn update_ghost_tile_positions(
         tile.pos = (board.get_hard_drop_pos(tile.tilemap, tilemap, placed_tiles)
             + offsets[ghost_tile.offset_index])
             .as_vec2();
+    }
+}
+
+fn update_ghost_tile_visibility(
+    mut ghost_tiles: Query<(&Tile, &mut Sprite), With<GhostTile>>,
+    boards: Query<(&Board, &Tilemap), Without<SkipUpdate>>,
+) {
+    for (tile, mut sprite) in ghost_tiles.iter_mut() {
+        sprite
+            .color
+            .set_alpha(if boards.get(tile.tilemap).is_err() {
+                0.0
+            } else {
+                1.0
+            });
     }
 }
