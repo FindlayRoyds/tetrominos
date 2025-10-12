@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use rand::{Rng, seq::IndexedRandom};
 use strum_macros::{EnumCount, EnumIter};
 
 #[derive(EnumIter, EnumCount, Copy, Clone, Debug, Hash, PartialEq, Eq)]
@@ -108,4 +109,16 @@ pub const fn get_tetromino_color(kind: TetrominoKind) -> &'static str {
         TetrominoKind::T => "purple",
         TetrominoKind::Z => "green",
     }
+}
+
+pub fn get_tetromino_start_piece<R: Rng>(mut rng: R) -> TetrominoKind {
+    *[
+        TetrominoKind::I,
+        TetrominoKind::O,
+        TetrominoKind::L,
+        TetrominoKind::J,
+        TetrominoKind::T,
+    ]
+    .choose(&mut rng)
+    .expect("Error while choosing start piece")
 }

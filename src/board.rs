@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use bevy::{ecs::query::QueryFilter, prelude::*};
 use bevy_shuffle_bag::ShuffleBag;
 use leafwing_input_manager::prelude::ActionState;
-use rand::Rng;
+use rand::{Rng, seq::SliceRandom};
 use strum::IntoEnumIterator;
 
 mod board_config;
@@ -24,7 +24,8 @@ use crate::{
         line_clear::LineClearPlugin,
         placed_tile::PlacedTile,
         tetromino_data::{
-            TetrominoKind, TetrominoRotation, get_tetromino_shape, get_tetromino_wall_kicks,
+            TetrominoKind, TetrominoRotation, get_tetromino_shape, get_tetromino_start_piece,
+            get_tetromino_wall_kicks,
         },
         tetromino_tile::{
             TetrominoTile, TetrominoTilePlugin, clear_tetromino_tiles, spawn_tetromino_tiles,
@@ -124,7 +125,10 @@ impl Board {
             &mut rng,
         )
         .expect("Failed to create shuffle bag");
-        let queue = VecDeque::from_iter(TetrominoKind::iter());
+        let mut kinds: Vec<TetrominoKind> = TetrominoKind::iter().collect();
+        kinds.shuffle(&mut rng);
+        let mut queue = VecDeque::from(kinds);
+        queue[0] = get_tetromino_start_piece(&mut rng);
 
         Self {
             kind: TetrominoKind::I,
@@ -143,9 +147,7 @@ impl Board {
             can_hold: true,
         }
     }
-}
 
-impl Board {
     pub fn spawn_next<T: Rng>(
         &mut self,
         commands: &mut Commands,
