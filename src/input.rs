@@ -17,6 +17,7 @@ pub enum Action {
     HardDrop,
     RotateLeft,
     RotateRight,
+    Hold,
 }
 
 pub fn get_board_input_map() -> InputMap<Action> {
@@ -36,6 +37,8 @@ pub fn get_board_input_map() -> InputMap<Action> {
 
     input_map.insert(RotateRight, KeyCode::KeyW);
     input_map.insert(RotateRight, KeyCode::ArrowUp);
+
+    input_map.insert(Hold, KeyCode::KeyC);
 
     input_map
 }

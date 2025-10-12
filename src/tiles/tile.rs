@@ -6,9 +6,15 @@ pub struct TilePlugin;
 
 impl Plugin for TilePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (update_tile_transforms, update_tile_visibility));
+        app.add_systems(
+            FixedUpdate,
+            (update_tile_transforms, update_tile_visibility).in_set(TileUpdateSystems),
+        );
     }
 }
+
+#[derive(SystemSet, Hash, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TileUpdateSystems;
 
 #[derive(Component)]
 #[require(Transform)]
@@ -38,7 +44,7 @@ fn update_tile_visibility(mut tiles: Query<(&Tile, &mut Visibility)>, tilemaps: 
         };
 
         *visibility = if tilemap.is_in_bounds(tile.pos.as_ivec2()) {
-            Visibility::Visible
+            Visibility::Inherited
         } else {
             Visibility::Hidden
         };

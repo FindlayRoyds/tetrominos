@@ -8,7 +8,7 @@ use crate::{
         tetromino_data::get_tetromino_shape,
         tile_assets::{TileImages, TileOutlineImages},
     },
-    tiles::Tile,
+    tiles::{Tile, TileUpdateSystems},
 };
 
 pub struct TetrominoTilePlugin;
@@ -19,7 +19,8 @@ impl Plugin for TetrominoTilePlugin {
             FixedUpdate,
             (update_tetromino_tile_positions, apply_lock_delay_visuals)
                 .chain()
-                .after(BoardUpdateSystems),
+                .after(BoardUpdateSystems)
+                .before(TileUpdateSystems),
         );
     }
 }

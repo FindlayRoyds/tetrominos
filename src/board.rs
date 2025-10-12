@@ -8,6 +8,7 @@ use strum::IntoEnumIterator;
 
 mod board_config;
 mod ghost_tile;
+pub mod hold_display;
 mod line_clear;
 mod outline;
 pub mod placed_tile;
@@ -19,6 +20,7 @@ use crate::{
     board::{
         board_config::BoardConfig,
         ghost_tile::{GhostTile, GhostTilePlugin, clear_ghost_tiles, spawn_ghost_tiles},
+        hold_display::{HoldDisplay, HoldDisplayPlugin},
         line_clear::LineClearPlugin,
         placed_tile::PlacedTile,
         tetromino_data::{
@@ -31,7 +33,7 @@ use crate::{
     },
     input::{Action, get_board_input_map},
     rng::RandomSource,
-    tiles::{Tile, Tilemap},
+    tiles::{Tile, TileUpdateSystems, Tilemap},
 };
 
 pub struct BoardPlugin;
@@ -43,12 +45,14 @@ impl Plugin for BoardPlugin {
             TetrominoTilePlugin,
             GhostTilePlugin,
             TileAssets,
+            HoldDisplayPlugin,
         ))
         .add_systems(
             FixedUpdate,
             (
                 (
                     move_lines_down,
+                    apply_hold,
                     apply_shift,
                     apply_auto_shift,
                     apply_soft_drop,
@@ -67,12 +71,13 @@ impl Plugin for BoardPlugin {
         .configure_sets(
             FixedUpdate,
             (
-                BoardUpdateSystems,
+                BoardUpdateSystems.before(TileUpdateSystems),
                 RemoveSkipUpdateSystems,
                 AddSkipUpdateSystems,
             )
                 .chain(),
-        );
+        )
+        .add_message::<HoldPieceChanged>();
     }
 }
 
@@ -88,6 +93,12 @@ struct AddSkipUpdateSystems;
 #[derive(Component)]
 pub struct SkipUpdate;
 
+#[derive(Message)]
+pub struct HoldPieceChanged {
+    board: Entity,
+    new_piece_kind: TetrominoKind,
+}
+
 #[derive(Component)]
 pub struct Board {
     kind: TetrominoKind,
@@ -101,6 +112,9 @@ pub struct Board {
 
     queue: VecDeque<TetrominoKind>,
     random_bag: ShuffleBag<TetrominoKind>,
+
+    hold_piece: Option<TetrominoKind>,
+    can_hold: bool,
 }
 
 impl Board {
@@ -117,11 +131,16 @@ impl Board {
             pos: Default::default(),
             movement: Default::default(),
             rotation: Default::default(),
+
             stationary_lock_delay: Default::default(),
             lock_delay: Default::default(),
             auto_shift_delay: Default::default(),
+
             queue,
             random_bag: shuffle_bag,
+
+            hold_piece: None,
+            can_hold: true,
         }
     }
 }
@@ -143,6 +162,30 @@ impl Board {
             return;
         };
         self.queue.push_back(*self.random_bag.pick(&mut rng));
+        self.spawn(
+            kind,
+            commands,
+            self_entity,
+            tilemap,
+            board_config,
+            placed_tiles,
+            tile_images,
+            tile_outline_images,
+        );
+        self.can_hold = true;
+    }
+
+    pub fn spawn(
+        &mut self,
+        kind: TetrominoKind,
+        commands: &mut Commands,
+        self_entity: Entity,
+        tilemap: &Tilemap,
+        board_config: &BoardConfig,
+        placed_tiles: Query<&Tile, With<PlacedTile>>,
+        tile_images: &Res<TileImages>,
+        tile_outline_images: &Res<TileOutlineImages>,
+    ) {
         self.kind = kind;
         self.pos = vec2(4.0, tilemap.size.y as f32 - 0.4);
         self.rotation = 0;
@@ -279,17 +322,21 @@ pub fn spawn_board<T: Rng>(
     tile_outline_images: Res<TileOutlineImages>,
     mut rng: T,
 ) {
-    let rec_size = (size * tile_size).as_vec2();
+    let board_backround_size = (size * tile_size).as_vec2();
+    let scale = Vec3::splat(4.0);
     let tilemap = Tilemap { size, tile_size };
     let board_config = BoardConfig::default();
     let mut board = Board::new(&mut rng);
 
+    let hold_size = uvec2(4, 4);
+    let hold_background_size = (hold_size * tile_size).as_vec2();
+
     let entity = commands
         .spawn((
             Name::new("Board"),
-            Mesh2d(meshes.add(Rectangle::new(rec_size.x, rec_size.y))),
+            Mesh2d(meshes.add(Rectangle::from_size(board_backround_size))),
             MeshMaterial2d(materials.add(Color::BLACK)),
-            Transform::from_scale(vec3(4.0, 4.0, 4.0)),
+            Transform::from_scale(scale),
             get_board_input_map(),
         ))
         .id();
@@ -304,9 +351,20 @@ pub fn spawn_board<T: Rng>(
         &tile_outline_images,
         rng,
     );
+
     commands
         .entity(entity)
         .insert((board, board_config, tilemap));
+    commands.spawn((
+        Tilemap {
+            size: hold_size,
+            tile_size,
+        },
+        HoldDisplay { board: entity },
+        Mesh2d(meshes.add(Rectangle::from_size(hold_background_size))),
+        MeshMaterial2d(materials.add(Color::BLACK)),
+        Transform::from_xyz(-8.0 * 4.0 * 8.0, 8.0 * 4.0 * 8.0, 0.0).with_scale(scale),
+    ));
 }
 
 fn move_lines_down(
@@ -338,6 +396,65 @@ fn move_lines_down(
             }
             if tiles_in_line.is_empty() {
                 num_cleared_lines += 1;
+            }
+        }
+    }
+}
+
+fn apply_hold(
+    mut commands: Commands,
+    mut boards: Query<
+        (
+            Entity,
+            &mut Board,
+            &ActionState<Action>,
+            &Tilemap,
+            &BoardConfig,
+        ),
+        Without<SkipUpdate>,
+    >,
+    placed_tiles: Query<&Tile, With<PlacedTile>>,
+    tile_images: Res<TileImages>,
+    tile_outline_images: Res<TileOutlineImages>,
+    mut random_source: ResMut<RandomSource>,
+    mut hold_messages: MessageWriter<HoldPieceChanged>,
+) {
+    let rng = &mut random_source.0;
+
+    for (board_entity, mut board, action_state, tilemap, board_config) in boards.iter_mut() {
+        if action_state.just_pressed(&Action::Hold) && board.can_hold {
+            board.can_hold = false;
+            hold_messages.write(HoldPieceChanged {
+                board: board_entity,
+                new_piece_kind: board.kind,
+            });
+
+            let old_hold_piece = board.hold_piece;
+            board.hold_piece = Some(board.kind);
+
+            if let Some(old_hold_piece) = old_hold_piece {
+                board.spawn(
+                    old_hold_piece,
+                    &mut commands,
+                    board_entity,
+                    tilemap,
+                    board_config,
+                    placed_tiles,
+                    &tile_images,
+                    &tile_outline_images,
+                );
+            } else {
+                board.spawn_next(
+                    &mut commands,
+                    board_entity,
+                    tilemap,
+                    board_config,
+                    placed_tiles,
+                    &tile_images,
+                    &tile_outline_images,
+                    &mut *rng,
+                );
+                board.can_hold = false;
             }
         }
     }
