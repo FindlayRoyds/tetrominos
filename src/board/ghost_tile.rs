@@ -89,12 +89,12 @@ fn update_ghost_tile_visibility(
     boards: Query<(&Board, &Tilemap), Without<SkipUpdate>>,
 ) {
     for (tile, mut sprite) in ghost_tiles.iter_mut() {
-        sprite
-            .color
-            .set_alpha(if boards.get(tile.tilemap).is_err() {
-                0.0
-            } else {
-                1.0
-            });
+        let mut alpha = 0.0;
+        if let Ok((board, tilemap)) = boards.get(tile.tilemap)
+            && board.get_snapped_pos().y < tilemap.size.y as i32
+        {
+            alpha = 1.0;
+        }
+        sprite.color.set_alpha(alpha);
     }
 }
