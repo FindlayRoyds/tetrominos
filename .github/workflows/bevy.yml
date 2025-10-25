@@ -29,7 +29,7 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
 
       - name: Install bevy_cli (if missing)
-        run: cargo install --git https://github.com/TheBevyFlock/bevy_cli --tag cli-v0.1.0-alpha.2 --locked bevy_cli
+        run: cargo install --git https://github.com/TheBevyFlock/bevy_cli --branch main --locked bevy_cli
 
       - name: Build
         run: bevy build --release --yes web --bundle
