@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use bevy::{ecs::query::QueryFilter, prelude::*};
+use bevy::prelude::*;
 use bevy_shuffle_bag::ShuffleBag;
 use leafwing_input_manager::prelude::ActionState;
 use rand::{Rng, seq::SliceRandom};
@@ -12,6 +12,7 @@ pub mod hold_display;
 mod line_clear;
 mod outline;
 pub mod placed_tile;
+pub mod queue_display;
 mod tetromino_data;
 mod tetromino_tile;
 pub mod tile_assets;
@@ -23,6 +24,7 @@ use crate::{
         hold_display::{HoldDisplay, HoldDisplayPlugin},
         line_clear::LineClearPlugin,
         placed_tile::PlacedTile,
+        queue_display::{QueueDisplay, QueueDisplayPlugin},
         tetromino_data::{
             TetrominoKind, TetrominoRotation, get_tetromino_shape, get_tetromino_start_piece,
             get_tetromino_wall_kicks,
@@ -47,6 +49,7 @@ impl Plugin for BoardPlugin {
             GhostTilePlugin,
             TileAssets,
             HoldDisplayPlugin,
+            QueueDisplayPlugin,
         ))
         .add_systems(
             FixedUpdate,
@@ -63,6 +66,9 @@ impl Plugin for BoardPlugin {
                     apply_movement,
                     apply_collisions,
                     apply_placement,
+                    place_tetrominos,
+                    spawn_next_tetrominos,
+                    spawn_tetrominos,
                 )
                     .chain()
                     .in_set(BoardUpdateSystems),
@@ -78,9 +84,15 @@ impl Plugin for BoardPlugin {
             )
                 .chain(),
         )
-        .add_message::<HoldPieceChanged>();
+        .add_message::<HoldPieceChanged>()
+        .add_message::<TetrominoQueueChanged>()
+        .add_message::<PlaceTetromino>()
+        .add_message::<SpawnNextTetromino>()
+        .add_message::<SpawnTetromino>();
     }
 }
+
+pub type TetrominoQueue = VecDeque<TetrominoKind>;
 
 #[derive(SystemSet, Hash, Debug, Clone, Copy, PartialEq, Eq)]
 struct BoardUpdateSystems;
@@ -100,6 +112,28 @@ pub struct HoldPieceChanged {
     new_piece_kind: TetrominoKind,
 }
 
+#[derive(Message)]
+pub struct TetrominoQueueChanged {
+    board: Entity,
+    new_queue: TetrominoQueue,
+}
+
+#[derive(Message)]
+pub struct PlaceTetromino {
+    board: Entity,
+}
+
+#[derive(Message)]
+pub struct SpawnNextTetromino {
+    board: Entity,
+}
+
+#[derive(Message)]
+pub struct SpawnTetromino {
+    board: Entity,
+    kind: TetrominoKind,
+}
+
 #[derive(Component)]
 pub struct Board {
     kind: TetrominoKind,
@@ -111,7 +145,7 @@ pub struct Board {
     lock_delay: i32,
     auto_shift_delay: i32,
 
-    queue: VecDeque<TetrominoKind>,
+    queue: TetrominoQueue,
     random_bag: ShuffleBag<TetrominoKind>,
 
     hold_piece: Option<TetrominoKind>,
@@ -127,7 +161,7 @@ impl Board {
         .expect("Failed to create shuffle bag");
         let mut kinds: Vec<TetrominoKind> = TetrominoKind::iter().collect();
         kinds.shuffle(&mut rng);
-        let mut queue = VecDeque::from(kinds);
+        let mut queue = TetrominoQueue::from(kinds);
         queue[0] = get_tetromino_start_piece(&mut rng);
 
         Self {
@@ -145,71 +179,6 @@ impl Board {
 
             hold_piece: None,
             can_hold: true,
-        }
-    }
-
-    pub fn spawn_next<T: Rng>(
-        &mut self,
-        commands: &mut Commands,
-        self_entity: Entity,
-        tilemap: &Tilemap,
-        board_config: &BoardConfig,
-        placed_tiles: Query<&Tile, With<PlacedTile>>,
-        tile_images: &Res<TileImages>,
-        tile_outline_images: &Res<TileOutlineImages>,
-        mut rng: T,
-    ) {
-        let Some(kind) = self.queue.pop_front() else {
-            error_once!("Attempted to pop from empty piece queue!");
-            return;
-        };
-        self.queue.push_back(*self.random_bag.pick(&mut rng));
-        self.spawn(
-            kind,
-            commands,
-            self_entity,
-            tilemap,
-            board_config,
-            placed_tiles,
-            tile_images,
-            tile_outline_images,
-        );
-        self.can_hold = true;
-    }
-
-    pub fn spawn(
-        &mut self,
-        kind: TetrominoKind,
-        commands: &mut Commands,
-        self_entity: Entity,
-        tilemap: &Tilemap,
-        board_config: &BoardConfig,
-        placed_tiles: Query<&Tile, With<PlacedTile>>,
-        tile_images: &Res<TileImages>,
-        tile_outline_images: &Res<TileOutlineImages>,
-    ) {
-        self.kind = kind;
-        self.pos = vec2(4.0, tilemap.size.y as f32 - 0.4);
-        self.rotation = 0;
-        self.lock_delay = board_config.lock_delay;
-
-        if self.can_place(
-            self_entity,
-            tilemap,
-            placed_tiles,
-            self.get_snapped_pos(),
-            self.rotation,
-        ) {
-            spawn_tetromino_tiles(
-                commands,
-                self,
-                self_entity,
-                tile_images,
-                tile_outline_images,
-            );
-            spawn_ghost_tiles(commands, self, self_entity, tile_outline_images);
-        } else {
-            bevy::log::error_once!("Attempted to spawn tetromino at invalid position");
         }
     }
 
@@ -234,54 +203,6 @@ impl Board {
         }
 
         true
-    }
-
-    pub fn place<T: QueryFilter, U: QueryFilter, R: Rng>(
-        &mut self,
-        commands: &mut Commands,
-        self_entity: Entity,
-        board_config: &BoardConfig,
-        tilemap: &Tilemap,
-        placed_tiles: Query<&Tile, With<PlacedTile>>,
-        tetromino_tiles: Query<(Entity, &Tile), T>,
-        ghost_tiles: Query<(Entity, &Tile), U>,
-        tile_images: &Res<TileImages>,
-        tile_outline_images: &Res<TileOutlineImages>,
-        rng: R,
-    ) {
-        if self.can_place(
-            self_entity,
-            tilemap,
-            placed_tiles,
-            self.get_snapped_pos(),
-            self.rotation,
-        ) {
-            for offset in get_tetromino_shape(self.kind, self.rotation) {
-                let pos = self.get_snapped_pos() + offset;
-                commands.spawn((
-                    Name::new("PlacedTile"),
-                    Tile {
-                        pos: pos.as_vec2(),
-                        tilemap: self_entity,
-                    },
-                    PlacedTile,
-                    ChildOf(self_entity),
-                    Sprite::from_image(tile_images.0[&self.kind].clone()),
-                ));
-            }
-        }
-        clear_tetromino_tiles(commands, self_entity, tetromino_tiles);
-        clear_ghost_tiles(commands, self_entity, ghost_tiles);
-        self.spawn_next(
-            commands,
-            self_entity,
-            tilemap,
-            board_config,
-            placed_tiles,
-            tile_images,
-            tile_outline_images,
-            rng,
-        );
     }
 
     fn get_hard_drop_pos(
@@ -315,23 +236,22 @@ fn snap_vec2(value: Vec2) -> IVec2 {
 
 pub fn spawn_board<T: Rng>(
     commands: &mut Commands,
-    placed_tiles: Query<&Tile, With<PlacedTile>>,
     size: UVec2,
     tile_size: UVec2,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
-    tile_images: Res<TileImages>,
-    tile_outline_images: Res<TileOutlineImages>,
     mut rng: T,
+    mut spawn_next_messages: MessageWriter<SpawnNextTetromino>,
 ) {
     let board_backround_size = (size * tile_size).as_vec2();
     let scale = Vec3::splat(4.0);
     let tilemap = Tilemap { size, tile_size };
     let board_config = BoardConfig::default();
-    let mut board = Board::new(&mut rng);
+    let board = Board::new(&mut rng);
 
-    let hold_size = uvec2(4, 4);
-    let hold_background_size = (hold_size * tile_size).as_vec2();
+    let hold_display_size = uvec2(4, 4);
+    let queue_display_size = uvec2(4, 4);
+    let hold_background_size = (hold_display_size * tile_size).as_vec2();
 
     let entity = commands
         .spawn((
@@ -343,29 +263,34 @@ pub fn spawn_board<T: Rng>(
         ))
         .id();
 
-    board.spawn_next(
-        commands,
-        entity,
-        &tilemap,
-        &board_config,
-        placed_tiles,
-        &tile_images,
-        &tile_outline_images,
-        rng,
-    );
+    spawn_next_messages.write(SpawnNextTetromino { board: entity });
 
     commands
         .entity(entity)
         .insert((board, board_config, tilemap));
+
+    // Hold display
     commands.spawn((
         Tilemap {
-            size: hold_size,
+            size: hold_display_size,
             tile_size,
         },
         HoldDisplay { board: entity },
         Mesh2d(meshes.add(Rectangle::from_size(hold_background_size))),
         MeshMaterial2d(materials.add(Color::BLACK)),
         Transform::from_xyz(-8.0 * 4.0 * 8.0, 8.0 * 4.0 * 8.0, 0.0).with_scale(scale),
+    ));
+
+    // Queue Display
+    commands.spawn((
+        Tilemap {
+            size: queue_display_size,
+            tile_size,
+        },
+        QueueDisplay { board: entity },
+        Mesh2d(meshes.add(Rectangle::from_size(hold_background_size))),
+        MeshMaterial2d(materials.add(Color::BLACK)),
+        Transform::from_xyz(8.0 * 4.0 * 8.0, 8.0 * 4.0 * 8.0, 0.0).with_scale(scale),
     ));
 }
 
@@ -404,26 +329,12 @@ fn move_lines_down(
 }
 
 fn apply_hold(
-    mut commands: Commands,
-    mut boards: Query<
-        (
-            Entity,
-            &mut Board,
-            &ActionState<Action>,
-            &Tilemap,
-            &BoardConfig,
-        ),
-        Without<SkipUpdate>,
-    >,
-    placed_tiles: Query<&Tile, With<PlacedTile>>,
-    tile_images: Res<TileImages>,
-    tile_outline_images: Res<TileOutlineImages>,
-    mut random_source: ResMut<RandomSource>,
+    mut boards: Query<(Entity, &mut Board, &ActionState<Action>), Without<SkipUpdate>>,
     mut hold_messages: MessageWriter<HoldPieceChanged>,
+    mut spawn_next_messages: MessageWriter<SpawnNextTetromino>,
+    mut spawn_messages: MessageWriter<SpawnTetromino>,
 ) {
-    let rng = &mut random_source.0;
-
-    for (board_entity, mut board, action_state, tilemap, board_config) in boards.iter_mut() {
+    for (board_entity, mut board, action_state) in boards.iter_mut() {
         if action_state.just_pressed(&Action::Hold) && board.can_hold {
             board.can_hold = false;
             hold_messages.write(HoldPieceChanged {
@@ -435,27 +346,14 @@ fn apply_hold(
             board.hold_piece = Some(board.kind);
 
             if let Some(old_hold_piece) = old_hold_piece {
-                board.spawn(
-                    old_hold_piece,
-                    &mut commands,
-                    board_entity,
-                    tilemap,
-                    board_config,
-                    placed_tiles,
-                    &tile_images,
-                    &tile_outline_images,
-                );
+                spawn_messages.write(SpawnTetromino {
+                    board: board_entity,
+                    kind: old_hold_piece,
+                });
             } else {
-                board.spawn_next(
-                    &mut commands,
-                    board_entity,
-                    tilemap,
-                    board_config,
-                    placed_tiles,
-                    &tile_images,
-                    &tile_outline_images,
-                    &mut *rng,
-                );
+                spawn_next_messages.write(SpawnNextTetromino {
+                    board: board_entity,
+                });
                 board.can_hold = false;
             }
         }
@@ -512,45 +410,18 @@ fn apply_soft_drop(
 }
 
 fn apply_hard_drop(
-    mut commands: Commands,
-    mut boards: Query<
-        (
-            Entity,
-            &ActionState<Action>,
-            &mut Board,
-            &BoardConfig,
-            &Tilemap,
-        ),
-        Without<SkipUpdate>,
-    >,
+    mut boards: Query<(Entity, &ActionState<Action>, &mut Board, &Tilemap), Without<SkipUpdate>>,
     placed_tiles: Query<&Tile, With<PlacedTile>>,
-    tetromino_tiles: Query<(Entity, &Tile), (With<TetrominoTile>, Without<PlacedTile>)>,
-    ghost_tiles: Query<
-        (Entity, &Tile),
-        (With<GhostTile>, Without<TetrominoTile>, Without<PlacedTile>),
-    >,
-    tile_images: Res<TileImages>,
-    tile_outline_images: Res<TileOutlineImages>,
-    mut random_source: ResMut<RandomSource>,
+    mut place_messages: MessageWriter<PlaceTetromino>,
 ) {
-    let rng = &mut random_source.0;
-    for (board_entity, action_state, mut board, board_config, tilemap) in boards.iter_mut() {
+    for (board_entity, action_state, mut board, tilemap) in boards.iter_mut() {
         if action_state.just_pressed(&Action::HardDrop) {
             board.pos = board
                 .get_hard_drop_pos(board_entity, tilemap, placed_tiles)
                 .as_vec2();
-            board.place(
-                &mut commands,
-                board_entity,
-                board_config,
-                tilemap,
-                placed_tiles,
-                tetromino_tiles,
-                ghost_tiles,
-                &tile_images,
-                &tile_outline_images,
-                &mut *rng,
-            );
+            place_messages.write(PlaceTetromino {
+                board: board_entity,
+            });
         }
     }
 }
@@ -654,7 +525,6 @@ fn apply_collisions(
 }
 
 fn apply_placement(
-    mut commands: Commands,
     mut boards: Query<
         (
             Entity,
@@ -666,17 +536,8 @@ fn apply_placement(
         Without<SkipUpdate>,
     >,
     placed_tiles: Query<&Tile, With<PlacedTile>>,
-    tetromino_tiles: Query<(Entity, &Tile), (With<TetrominoTile>, Without<PlacedTile>)>,
-    ghost_tiles: Query<
-        (Entity, &Tile),
-        (With<GhostTile>, Without<TetrominoTile>, Without<PlacedTile>),
-    >,
-    tile_images: Res<TileImages>,
-    tile_outline_images: Res<TileOutlineImages>,
-    mut random_source: ResMut<RandomSource>,
+    mut place_messages: MessageWriter<PlaceTetromino>,
 ) {
-    let rng = &mut random_source.0;
-
     for (board_entity, mut board, board_config, tilemap, action_state) in boards.iter_mut() {
         let pos_below = board.get_snapped_pos() - ivec2(0, 1);
         if board.can_place(
@@ -699,18 +560,130 @@ fn apply_placement(
         }
 
         if board.lock_delay < 0 || board.stationary_lock_delay < 0 {
-            board.place(
+            place_messages.write(PlaceTetromino {
+                board: board_entity,
+            });
+        }
+    }
+}
+
+fn place_tetrominos(
+    boards: Query<(Entity, &Board, &Tilemap), Without<SkipUpdate>>,
+    mut place_messages: MessageReader<PlaceTetromino>,
+    mut commands: Commands,
+    placed_tiles: Query<&Tile, With<PlacedTile>>,
+    tetromino_tiles: Query<(Entity, &Tile), (With<TetrominoTile>, Without<PlacedTile>)>,
+    ghost_tiles: Query<
+        (Entity, &Tile),
+        (With<GhostTile>, Without<TetrominoTile>, Without<PlacedTile>),
+    >,
+    tile_images: Res<TileImages>,
+    mut spawn_next_messages: MessageWriter<SpawnNextTetromino>,
+) {
+    for message in place_messages.read() {
+        let Ok((board_entity, board, tilemap)) = boards.get(message.board) else {
+            bevy::log::error_once!("Failed to get board when spawning next tetromino!");
+            break;
+        };
+        if board.can_place(
+            board_entity,
+            tilemap,
+            placed_tiles,
+            board.get_snapped_pos(),
+            board.rotation,
+        ) {
+            for offset in get_tetromino_shape(board.kind, board.rotation) {
+                let pos = board.get_snapped_pos() + offset;
+                commands.spawn((
+                    Name::new("PlacedTile"),
+                    Tile {
+                        pos: pos.as_vec2(),
+                        tilemap: board_entity,
+                    },
+                    PlacedTile,
+                    ChildOf(board_entity),
+                    Sprite::from_image(tile_images.0[&board.kind].clone()),
+                ));
+            }
+        }
+        clear_tetromino_tiles(&mut commands, board_entity, tetromino_tiles);
+        clear_ghost_tiles(&mut commands, board_entity, ghost_tiles);
+        spawn_next_messages.write(SpawnNextTetromino {
+            board: board_entity,
+        });
+    }
+}
+
+fn spawn_next_tetrominos(
+    mut boards: Query<(Entity, &mut Board), Without<SkipUpdate>>,
+    mut spawn_next_messages: MessageReader<SpawnNextTetromino>,
+    mut spawn_messages: MessageWriter<SpawnTetromino>,
+    mut queue_messages: MessageWriter<TetrominoQueueChanged>,
+    mut random_source: ResMut<RandomSource>,
+) {
+    let mut rng = &mut random_source.0;
+
+    for message in spawn_next_messages.read() {
+        let Ok((board_entity, mut board)) = boards.get_mut(message.board) else {
+            bevy::log::error_once!("Failed to get board when spawning next tetromino!");
+            break;
+        };
+
+        let Some(kind) = board.queue.pop_front() else {
+            error_once!("Attempted to pop from empty piece queue!");
+            return;
+        };
+        let picked_tetromino = *board.random_bag.pick(&mut rng);
+        board.queue.push_back(picked_tetromino);
+        spawn_messages.write(SpawnTetromino {
+            board: board_entity,
+            kind,
+        });
+        board.can_hold = true;
+        queue_messages.write(TetrominoQueueChanged {
+            board: board_entity,
+            new_queue: board.queue.clone(),
+        });
+    }
+}
+
+fn spawn_tetrominos(
+    mut commands: Commands,
+    mut boards: Query<(Entity, &mut Board, &Tilemap, &BoardConfig), Without<SkipUpdate>>,
+    mut messages: MessageReader<SpawnTetromino>,
+    placed_tiles: Query<&Tile, With<PlacedTile>>,
+    tile_images: Res<TileImages>,
+    tile_outline_images: Res<TileOutlineImages>,
+) {
+    for message in messages.read() {
+        let Ok((board_entity, mut board, tilemap, board_config)) = boards.get_mut(message.board)
+        else {
+            bevy::log::error_once!("Failed to get board when spawning next tetromino!");
+            break;
+        };
+
+        board.kind = message.kind;
+        board.pos = vec2(4.0, tilemap.size.y as f32 - 0.4);
+        board.rotation = 0;
+        board.lock_delay = board_config.lock_delay;
+
+        if board.can_place(
+            board_entity,
+            tilemap,
+            placed_tiles,
+            board.get_snapped_pos(),
+            board.rotation,
+        ) {
+            spawn_tetromino_tiles(
                 &mut commands,
+                &board,
                 board_entity,
-                board_config,
-                tilemap,
-                placed_tiles,
-                tetromino_tiles,
-                ghost_tiles,
                 &tile_images,
                 &tile_outline_images,
-                &mut *rng,
             );
+            spawn_ghost_tiles(&mut commands, &board, board_entity, &tile_outline_images);
+        } else {
+            bevy::log::error_once!("Attempted to spawn tetromino at invalid position");
         }
     }
 }

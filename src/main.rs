@@ -8,15 +8,10 @@ mod rng;
 mod tiles;
 
 use crate::{
-    board::{
-        BoardPlugin,
-        placed_tile::PlacedTile,
-        spawn_board,
-        tile_assets::{TileImages, TileOutlineImages},
-    },
+    board::{BoardPlugin, SpawnNextTetromino, spawn_board},
     input::InputPlugin,
     rng::RandomSource,
-    tiles::{Tile, TilePlugin},
+    tiles::TilePlugin,
 };
 
 fn main() -> AppExit {
@@ -31,11 +26,9 @@ fn main() -> AppExit {
 
 fn setup(
     mut commands: Commands,
-    placed_tiles: Query<&Tile, With<PlacedTile>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    tile_images: Res<TileImages>,
-    tile_outline_images: Res<TileOutlineImages>,
+    spawn_next_messages: MessageWriter<SpawnNextTetromino>,
 ) {
     commands.spawn(Camera2d);
 
@@ -45,13 +38,11 @@ fn setup(
 
     spawn_board(
         &mut commands,
-        placed_tiles,
         uvec2(10, 20),
         uvec2(8, 8),
         &mut meshes,
         &mut materials,
-        tile_images,
-        tile_outline_images,
         &mut rng,
+        spawn_next_messages,
     );
 }
