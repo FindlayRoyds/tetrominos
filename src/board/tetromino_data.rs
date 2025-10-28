@@ -122,3 +122,25 @@ pub fn get_tetromino_start_piece<R: Rng>(mut rng: R) -> TetrominoKind {
     .choose(&mut rng)
     .expect("Error while choosing start piece")
 }
+
+pub fn get_tetromino_bounds(kind: TetrominoKind, rotation: TetrominoRotation) -> (IVec2, IVec2) {
+    let shape = get_tetromino_shape(kind, rotation);
+
+    let min_x = shape.iter().map(|p| p.x).min().unwrap();
+    let max_x = shape.iter().map(|p| p.x).max().unwrap();
+    let min_y = shape.iter().map(|p| p.y).min().unwrap();
+    let max_y = shape.iter().map(|p| p.y).max().unwrap();
+
+    (ivec2(min_x, min_y), ivec2(max_x, max_y))
+}
+
+pub fn get_tetromino_display_offset(
+    kind: TetrominoKind,
+    rotation: TetrominoRotation,
+    display_size: UVec2,
+) -> Vec2 {
+    let bounds = get_tetromino_bounds(kind, rotation);
+    let size = bounds.1 - bounds.0 + ivec2(1, 1);
+
+    display_size.as_vec2() / 2.0 - size.as_vec2() / 2.0 - bounds.0.as_vec2()
+}

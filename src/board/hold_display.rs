@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{
     board::{
         BoardUpdateSystems, HoldPieceChanged,
-        tetromino_data::{TetrominoKind, get_tetromino_shape},
+        tetromino_data::{TetrominoKind, get_tetromino_display_offset, get_tetromino_shape},
         tile_assets::TileImages,
     },
     tiles::{Tile, TileUpdateSystems},
@@ -36,12 +36,13 @@ impl HoldDisplay {
         tiles: Query<(Entity, &Tile), With<HoldDisplayTile>>,
     ) {
         HoldDisplay::clear_display(commands, self_entity, tiles);
+        let display_offset = get_tetromino_display_offset(kind, 0, uvec2(4, 4));
 
         for offset in get_tetromino_shape(kind, 0).iter() {
             commands.spawn((
                 Name::new("HoldDisplayTile"),
                 Tile {
-                    pos: (offset + ivec2(1, 1)).as_vec2(),
+                    pos: offset.as_vec2() + display_offset,
                     tilemap: self_entity,
                 },
                 HoldDisplayTile,

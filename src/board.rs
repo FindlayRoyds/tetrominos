@@ -250,8 +250,11 @@ pub fn spawn_board<T: Rng>(
     let board = Board::new(&mut rng);
 
     let hold_display_size = uvec2(4, 4);
-    let queue_display_size = uvec2(4, 4);
     let hold_background_size = (hold_display_size * tile_size).as_vec2();
+
+    let queue_display_length = board_config.queue_display_length;
+    let queue_display_size = uvec2(4, queue_display_length * 4);
+    let queue_background_size = (queue_display_size * tile_size).as_vec2();
 
     let entity = commands
         .spawn((
@@ -287,10 +290,13 @@ pub fn spawn_board<T: Rng>(
             size: queue_display_size,
             tile_size,
         },
-        QueueDisplay { board: entity },
-        Mesh2d(meshes.add(Rectangle::from_size(hold_background_size))),
+        QueueDisplay {
+            board: entity,
+            length: queue_display_length,
+        },
+        Mesh2d(meshes.add(Rectangle::from_size(queue_background_size))),
         MeshMaterial2d(materials.add(Color::BLACK)),
-        Transform::from_xyz(8.0 * 4.0 * 8.0, 8.0 * 4.0 * 8.0, 0.0).with_scale(scale),
+        Transform::from_xyz(8.0 * 4.0 * 8.0, 2.0 * 4.0 * 8.0, 0.0).with_scale(scale),
     ));
 }
 

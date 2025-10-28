@@ -13,6 +13,8 @@ pub struct BoardConfig {
     pub line_clear_fade_time: i32,
     pub line_clear_delay: i32,
     pub line_clear_horizontal_delay: i32,
+
+    pub queue_display_length: u32,
 }
 
 impl Default for BoardConfig {
@@ -29,6 +31,8 @@ impl Default for BoardConfig {
             line_clear_fade_time: 5,
             line_clear_delay: 10,
             line_clear_horizontal_delay: 2,
+
+            queue_display_length: 4,
         }
     }
 }
